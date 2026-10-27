@@ -347,6 +347,46 @@ impl Inventario {
         resumen
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Inventario;
+    use crate::producto::{Categoria, Movimiento, Producto};
+
+    fn inventario_con_producto() -> Inventario {
+        let mut inventario = Inventario::nuevo();
+        let producto = Producto::nuevo(
+            1, "SKU-TEST", "Agua", Categoria::Bebida, 2_500, 10, 3
+        ).expect("los datos de prueba son validos");
+        inventario.agregar(producto).expect("el SKU de prueba es unico");
+        inventario
+    }
+
+    #[test]
+    fn rechaza_sku_duplicado() {
+        let mut inventario = inventario_con_producto();
+        let duplicado = Producto::nuevo(
+            2, "SKU-TEST", "Otra agua", Categoria::Bebida, 1_000, 1, 0
+        ).expect("el producto duplicado tiene datos validos");
+        assert!(inventario.agregar(duplicado).is_err());
+        assert_eq!(inventario.productos().len(), 1);
+    }
+
+    #[test]
+    fn salida_mayor_que_el_stock_no_modifica_el_inventario() {
+        let mut inventario = inventario_con_producto();
+        assert!(inventario.aplicar_movimiento("SKU-TEST", Movimiento::Salida(20)).is_err());
+        assert_eq!(inventario.buscar("SKU-TEST").unwrap().stock(), 10);
+    }
+
+    #[test]
+    fn movimiento_valido_actualiza_stock_y_valor() {
+        let mut inventario = inventario_con_producto();
+        inventario.aplicar_movimiento("SKU-TEST", Movimiento::Entrada(5)).unwrap();
+        assert_eq!(inventario.buscar("SKU-TEST").unwrap().stock(), 15);
+        assert_eq!(inventario.valor_total_cop().unwrap(), 37_500);
+    }
+}
 ```
 
 ## src/reportes.rs
