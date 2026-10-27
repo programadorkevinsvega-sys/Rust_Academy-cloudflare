@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+  "rust-nivel-1-cierre-operativo",
+  "rust-nivel-2-inventario-logistico",
+  "rust-nivel-3-auditoria-eventos",
+  "rust-nivel-4-conciliacion-facturas",
+  "rust-nivel-5-ingesta-eventos",
+]

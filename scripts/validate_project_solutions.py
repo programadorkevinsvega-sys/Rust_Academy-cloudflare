@@ -86,6 +86,13 @@ def main() -> None:
                 check=True,
             )
 
+    print("\n=== Validando los proyectos Rust físicos en proyectos/ ===", flush=True)
+    subprocess.run(
+        ["cargo", "test", "--manifest-path", str(ROOT / "proyectos" / "Cargo.toml")],
+        cwd=ROOT,
+        check=True,
+    )
+
     print("\nTodos los proyectos compilaron y sus pruebas terminaron correctamente.", flush=True)
 
 if __name__ == "__main__":

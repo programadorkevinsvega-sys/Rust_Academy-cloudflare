@@ -16,6 +16,16 @@ moduleName: "Módulos 1–8: stack/heap, ownership, move/Copy/Clone, borrowing, 
 
 # Misión del proyecto
 
+## Código fuente ejecutable
+
+El código de referencia explicado en este documento también está disponible como una aplicación Rust independiente, separada en las carpetas `modelo/`, `service/`, `controlador/` y `vista/`.
+
+- [Abrir el proyecto y sus archivos fuente en GitHub](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/tree/main/proyectos/rust-nivel-3-auditoria-eventos)
+- Ejecutar desde la raíz del repositorio: `cargo run --manifest-path proyectos/rust-nivel-3-auditoria-eventos/Cargo.toml`
+- Ejecutar sus pruebas: `cargo test --manifest-path proyectos/rust-nivel-3-auditoria-eventos/Cargo.toml`
+
+Esta versión utiliza datos simulados; no conecta con sistemas empresariales reales.
+
 ## Contexto de empresa
 
 AndesPay debe revisar registros de acceso después de un incidente de seguridad. El sistema existente genera archivos de texto grandes, y el primer prototipo del equipo de soporte copia cada campo a nuevos `String`, aumentando el consumo de memoria y haciendo más compleja la administración de los datos.

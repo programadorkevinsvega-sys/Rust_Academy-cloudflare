@@ -66,6 +66,22 @@ tags: ["variables", "funciones"]
 4. Añade el contenido Markdown después de los metadatos, ejecuta npm run build y sube los cambios.
 La portada, las tarjetas, la búsqueda y las rutas se generan automáticamente a partir de los archivos Markdown.
 
+## Código fuente ejecutable de los proyectos Rust
+
+Los enunciados de `src/content/projects/` están acompañados por aplicaciones reales en `proyectos/`. Cada nivel tiene `Cargo.toml`, `src/main.rs` y las capas `src/modelo/`, `src/service/`, `src/controlador/` y `src/vista/` (el nivel 5 añade servicios separados para hilos y async).
+
+Prueba todas las aplicaciones desde la raíz:
+
+```bash
+cargo test --manifest-path proyectos/Cargo.toml
+```
+
+Ejemplo para ejecutar el nivel 5:
+
+```bash
+cargo run --manifest-path proyectos/rust-nivel-5-ingesta-eventos/Cargo.toml
+```
+
 ## Estructura
 ```
 src/

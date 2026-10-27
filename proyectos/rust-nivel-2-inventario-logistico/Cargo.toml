@@ -1,0 +1,6 @@
+[package]
+name = "rust-nivel-2-inventario-logistico"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

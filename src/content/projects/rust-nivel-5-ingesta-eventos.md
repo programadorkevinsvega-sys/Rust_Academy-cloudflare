@@ -16,6 +16,16 @@ moduleName: "Módulos 0–11: closures, concurrencia, threads, Send/Sync, Arc/Mu
 
 # Misión del proyecto
 
+## Código fuente ejecutable
+
+El código de referencia explicado en este documento también está disponible como una aplicación Rust independiente, separada en las carpetas `modelo/`, `service/`, `controlador/` y `vista/`.
+
+- [Abrir el proyecto y sus archivos fuente en GitHub](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/tree/main/proyectos/rust-nivel-5-ingesta-eventos)
+- Ejecutar desde la raíz del repositorio: `cargo run --manifest-path proyectos/rust-nivel-5-ingesta-eventos/Cargo.toml`
+- Ejecutar sus pruebas: `cargo test --manifest-path proyectos/rust-nivel-5-ingesta-eventos/Cargo.toml`
+
+Esta versión utiliza datos simulados; no conecta con sistemas empresariales reales.
+
 ## Contexto de empresa
 
 Mercado Andino recibe eventos de pedidos provenientes de sus tiendas y operadores logísticos: pedido creado, pago confirmado, paquete despachado, entrega fallida y pedido entregado. En horas pico aparecen ráfagas de mensajes; si los consumidores son más lentos que los productores, la cola crece, aumenta la latencia y se vuelve difícil detener el servicio sin perder trazabilidad.

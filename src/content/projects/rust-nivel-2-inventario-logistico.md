@@ -16,6 +16,16 @@ moduleName: "Módulos 0–8: ownership y referencias, structs, enums, impl, mód
 
 # Misión del proyecto
 
+## Código fuente ejecutable
+
+El código de referencia explicado en este documento también está disponible como una aplicación Rust independiente, separada en las carpetas `modelo/`, `service/`, `controlador/` y `vista/`.
+
+- [Abrir el proyecto y sus archivos fuente en GitHub](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/tree/main/proyectos/rust-nivel-2-inventario-logistico)
+- Ejecutar desde la raíz del repositorio: `cargo run --manifest-path proyectos/rust-nivel-2-inventario-logistico/Cargo.toml`
+- Ejecutar sus pruebas: `cargo test --manifest-path proyectos/rust-nivel-2-inventario-logistico/Cargo.toml`
+
+Esta versión utiliza datos simulados; no conecta con sistemas empresariales reales.
+
 ## Contexto de empresa
 
 Norte Distribución abastece cuatro tiendas y necesita una herramienta interna para mantener un catálogo único de productos. El equipo reporta problemas frecuentes: referencias duplicadas, ventas que dejan el stock negativo y productos por debajo del mínimo de reposición que no aparecen en el informe diario.
