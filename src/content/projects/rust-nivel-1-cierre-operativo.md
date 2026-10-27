@@ -261,6 +261,43 @@ fn main() {
         clasificar_cierre(ingreso_total(&ventas_vacias))
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calcula_el_ingreso_total_de_la_jornada() {
+        assert_eq!(ingreso_total(&VENTAS), 343_000);
+        assert_eq!(unidades_totales(&VENTAS), 64);
+    }
+
+    #[test]
+    fn una_linea_sin_unidades_no_genera_ingreso() {
+        assert_eq!(ingreso_de_linea(5_000, 0), 0);
+    }
+
+    #[test]
+    fn el_promedio_de_una_lista_vacia_no_divide_por_cero() {
+        let ventas_vacias: [Venta; 0] = [];
+        assert_eq!(promedio_por_linea(&ventas_vacias), (0.0, false));
+        assert_eq!(clasificar_cierre(ingreso_total(&ventas_vacias)), "Sin ventas");
+    }
+
+    #[test]
+    fn clasifica_el_cumplimiento_de_la_meta() {
+        assert_eq!(clasificar_cierre(250_000), "Por debajo de la meta");
+        assert_eq!(clasificar_cierre(META_DIARIA_COP), "Meta cumplida");
+    }
+
+    #[test]
+    fn detecta_la_linea_de_mayor_ingreso() {
+        let (nombre, ingreso, existe) = linea_de_mayor_ingreso(&VENTAS);
+        assert_eq!(nombre, "Café americano");
+        assert_eq!(ingreso, 81_000);
+        assert!(existe);
+    }
+}
 ```
 
 ## Ejecutar y comprobar
