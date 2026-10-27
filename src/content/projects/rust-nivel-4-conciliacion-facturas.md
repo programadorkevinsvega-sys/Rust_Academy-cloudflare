@@ -117,3 +117,336 @@ El conjunto es sintético. Los valores de impuesto son datos de prueba y no debe
 ## Fuera de alcance
 
 No automatices pagos ni conectes sistemas bancarios. El sistema entrega una decisión de conciliación auditable; la autorización de pago sigue siendo un proceso separado.
+
+
+---
+
+# Solución de referencia completa
+
+Crea el proyecto conciliador_facturas:
+
+~~~text
+conciliador_facturas/
+├── Cargo.toml
+└── src/
+    └── main.rs
+~~~
+
+## Cargo.toml
+
+~~~toml
+[package]
+name = "conciliador_facturas"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+~~~
+
+## src/main.rs
+
+~~~rust
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
+use std::fmt;
+
+#[derive(Debug, Clone)]
+struct OrdenCompra {
+    proveedor_id: String,
+    subtotal_cop: u64,
+}
+
+#[derive(Debug, Clone)]
+struct Factura {
+    factura_id: String,
+    proveedor_id: String,
+    orden_id: String,
+    subtotal_cop: u64,
+    impuesto_cop: u64,
+    total_cop: u64,
+}
+
+#[derive(Debug)]
+enum ErrorLinea {
+    CamposIncorrectos(usize),
+    CampoVacio(&'static str),
+    NumeroInvalido { campo: &'static str, valor: String },
+    Desbordamiento,
+    TotalIncoherente { esperado: u64, recibido: u64 },
+    FacturaDuplicada(String),
+    OrdenNoEncontrada(String),
+    ProveedorNoCoincide { factura: String, orden: String },
+    SubtotalNoCoincide { factura: u64, orden: u64 },
+}
+
+impl fmt::Display for ErrorLinea {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorLinea::CamposIncorrectos(n) =>
+                write!(f, "se esperaban 6 campos y llegaron {n}"),
+            ErrorLinea::CampoVacio(campo) =>
+                write!(f, "el campo {campo} esta vacio"),
+            ErrorLinea::NumeroInvalido { campo, valor } =>
+                write!(f, "{campo} no es un entero valido: {valor}"),
+            ErrorLinea::Desbordamiento =>
+                write!(f, "subtotal mas impuesto excede el rango permitido"),
+            ErrorLinea::TotalIncoherente { esperado, recibido } =>
+                write!(f, "total incoherente: se esperaba {esperado} y llego {recibido}"),
+            ErrorLinea::FacturaDuplicada(id) =>
+                write!(f, "la factura {id} esta duplicada"),
+            ErrorLinea::OrdenNoEncontrada(id) =>
+                write!(f, "no existe la orden de compra {id}"),
+            ErrorLinea::ProveedorNoCoincide { factura, orden } =>
+                write!(f, "el proveedor de la factura ({factura}) no coincide con el de la orden ({orden})"),
+            ErrorLinea::SubtotalNoCoincide { factura, orden } =>
+                write!(f, "subtotal de factura {factura} no coincide con el de la orden {orden}"),
+        }
+    }
+}
+
+impl Error for ErrorLinea {}
+
+#[derive(Debug)]
+struct ErrorProceso {
+    linea: usize,
+    causa: ErrorLinea,
+}
+
+impl fmt::Display for ErrorProceso {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "linea {}: {}", self.linea, self.causa)
+    }
+}
+
+impl Error for ErrorProceso {}
+
+fn leer_numero(campo: &'static str, valor: &str) -> Result<u64, ErrorLinea> {
+    valor.trim().parse::<u64>().map_err(|_| ErrorLinea::NumeroInvalido {
+        campo,
+        valor: valor.trim().to_string(),
+    })
+}
+
+fn parsear_linea(linea: &str) -> Result<Factura, ErrorLinea> {
+    let campos: Vec<&str> = linea.split(';').map(str::trim).collect();
+    if campos.len() != 6 {
+        return Err(ErrorLinea::CamposIncorrectos(campos.len()));
+    }
+
+    let nombres = [
+        "factura_id",
+        "proveedor_id",
+        "orden_id",
+        "subtotal_cop",
+        "impuesto_cop",
+        "total_cop",
+    ];
+    for (indice, valor) in campos.iter().enumerate() {
+        if valor.is_empty() {
+            return Err(ErrorLinea::CampoVacio(nombres[indice]));
+        }
+    }
+
+    let subtotal_cop = leer_numero("subtotal_cop", campos[3])?;
+    let impuesto_cop = leer_numero("impuesto_cop", campos[4])?;
+    let total_cop = leer_numero("total_cop", campos[5])?;
+    let esperado = subtotal_cop
+        .checked_add(impuesto_cop)
+        .ok_or(ErrorLinea::Desbordamiento)?;
+
+    if total_cop != esperado {
+        return Err(ErrorLinea::TotalIncoherente {
+            esperado,
+            recibido: total_cop,
+        });
+    }
+
+    Ok(Factura {
+        factura_id: campos[0].to_string(),
+        proveedor_id: campos[1].to_string(),
+        orden_id: campos[2].to_string(),
+        subtotal_cop,
+        impuesto_cop,
+        total_cop,
+    })
+}
+
+fn validar_conciliacion(
+    factura: &Factura,
+    ordenes: &HashMap<String, OrdenCompra>,
+) -> Result<(), ErrorLinea> {
+    let orden = ordenes
+        .get(&factura.orden_id)
+        .ok_or_else(|| ErrorLinea::OrdenNoEncontrada(factura.orden_id.clone()))?;
+
+    if factura.proveedor_id != orden.proveedor_id {
+        return Err(ErrorLinea::ProveedorNoCoincide {
+            factura: factura.proveedor_id.clone(),
+            orden: orden.proveedor_id.clone(),
+        });
+    }
+
+    if factura.subtotal_cop != orden.subtotal_cop {
+        return Err(ErrorLinea::SubtotalNoCoincide {
+            factura: factura.subtotal_cop,
+            orden: orden.subtotal_cop,
+        });
+    }
+
+    Ok(())
+}
+
+fn procesar_estricto(
+    contenido: &str,
+    ordenes: &HashMap<String, OrdenCompra>,
+) -> Result<Vec<Factura>, ErrorProceso> {
+    let mut aceptadas = Vec::new();
+    let mut ids = HashSet::new();
+
+    for (indice, linea) in contenido.lines().enumerate() {
+        if linea.trim().is_empty() {
+            continue;
+        }
+
+        let resultado = (|| {
+            let factura = parsear_linea(linea)?;
+            if !ids.insert(factura.factura_id.clone()) {
+                return Err(ErrorLinea::FacturaDuplicada(factura.factura_id.clone()));
+            }
+            validar_conciliacion(&factura, ordenes)?;
+            Ok(factura)
+        })();
+
+        match resultado {
+            Ok(factura) => aceptadas.push(factura),
+            Err(causa) => return Err(ErrorProceso { linea: indice + 1, causa }),
+        }
+    }
+
+    Ok(aceptadas)
+}
+
+fn procesar_tolerante(
+    contenido: &str,
+    ordenes: &HashMap<String, OrdenCompra>,
+) -> (Vec<Factura>, Vec<ErrorProceso>) {
+    let mut aceptadas = Vec::new();
+    let mut errores = Vec::new();
+    let mut ids = HashSet::new();
+
+    for (indice, linea) in contenido.lines().enumerate() {
+        if linea.trim().is_empty() {
+            continue;
+        }
+
+        let resultado = (|| {
+            let factura = parsear_linea(linea)?;
+            if !ids.insert(factura.factura_id.clone()) {
+                return Err(ErrorLinea::FacturaDuplicada(factura.factura_id.clone()));
+            }
+            validar_conciliacion(&factura, ordenes)?;
+            Ok(factura)
+        })();
+
+        match resultado {
+            Ok(factura) => aceptadas.push(factura),
+            Err(causa) => errores.push(ErrorProceso { linea: indice + 1, causa }),
+        }
+    }
+
+    (aceptadas, errores)
+}
+
+const DATOS: &str = "\
+FAC-1001;PROV-10;OC-8001;250000;47500;297500
+FAC-1002;PROV-12;OC-8002;180000;34200;214200
+FAC-1001;PROV-10;OC-8001;250000;47500;297500
+FAC-1004;PROV-14;OC-9999;90000;17100;107100
+FAC-1005;PROV-10;OC-8001;abc;0;0
+FAC-1006;PROV-10;OC-8001;250000;47500;310000
+FAC-1007;PROV-12;OC-8001;250000;47500;297500
+FAC-1008;PROV-10;OC-8001;240000;45600;285600";
+
+fn ordenes_demo() -> HashMap<String, OrdenCompra> {
+    HashMap::from([
+        ("OC-8001".to_string(), OrdenCompra {
+            proveedor_id: "PROV-10".to_string(),
+            subtotal_cop: 250_000,
+        }),
+        ("OC-8002".to_string(), OrdenCompra {
+            proveedor_id: "PROV-12".to_string(),
+            subtotal_cop: 180_000,
+        }),
+    ])
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let ordenes = ordenes_demo();
+
+    match procesar_estricto(DATOS, &ordenes) {
+        Ok(facturas) => println!("Modo estricto: {} facturas conciliadas", facturas.len()),
+        Err(error) => println!("Modo estricto se detuvo: {error}"),
+    }
+
+    let (facturas, errores) = procesar_tolerante(DATOS, &ordenes);
+    println!("\n=== REPORTE TOLERANTE ===");
+    println!("Facturas conciliadas: {}", facturas.len());
+    println!("Filas rechazadas: {}", errores.len());
+
+    let total_validado: u64 = facturas.iter().map(|f| f.total_cop).sum();
+    println!("Total de facturas conciliadas: {} COP", total_validado);
+
+    for factura in &facturas {
+        println!(
+            "OK {} | proveedor={} | orden={} | total={} COP",
+            factura.factura_id, factura.proveedor_id, factura.orden_id, factura.total_cop
+        );
+    }
+
+    println!("\nIncidencias para corregir:");
+    for error in errores {
+        println!("  - {error}");
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn acepta_una_factura_con_total_correcto() {
+        let factura = parsear_linea("FAC-1;PROV-1;OC-1;100;19;119");
+        assert!(factura.is_ok());
+    }
+
+    #[test]
+    fn rechaza_un_total_incoherente() {
+        let error = parsear_linea("FAC-1;PROV-1;OC-1;100;19;120");
+        assert!(matches!(error, Err(ErrorLinea::TotalIncoherente { .. })));
+    }
+
+    #[test]
+    fn rechaza_importe_no_numerico() {
+        assert!(parsear_linea("FAC-1;PROV-1;OC-1;abc;19;119").is_err());
+    }
+
+    #[test]
+    fn detecta_una_orden_inexistente() {
+        let factura = parsear_linea("FAC-1;PROV-1;OC-X;100;19;119").unwrap();
+        let error = validar_conciliacion(&factura, &HashMap::new());
+        assert!(matches!(error, Err(ErrorLinea::OrdenNoEncontrada(_))));
+    }
+}
+~~~
+
+## Ejecutarlo
+
+~~~bash
+cargo run
+cargo test
+~~~
+
+La lista de órdenes de compra está simulada en memoria. En la práctica, la empresa debería validar sus reglas tributarias y conectar una fuente fiable de órdenes antes de usar un procesador así con información real.
+
