@@ -8,6 +8,7 @@ category: "Memoria y seguridad"
 duration: "Intermedio"
 order: 3
 slug: rust-nivel-3
+projectSlug: "rust-nivel-3-auditoria-eventos"
 tags: ["ownership", "borrowing", "lifetimes", "referencias", "memoria"]
 ---
 # 🦀 Curso de Rust — Nivel 3: Ownership, borrowing y lifetimes
@@ -32,7 +33,7 @@ tags: ["ownership", "borrowing", "lifetimes", "referencias", "memoria"]
 6. [Slices: `&str` y `&[T]`](#módulo-6-slices-str-y-t)
 7. [Lifetimes: `'a`, referencias y su validez](#módulo-7-lifetimes-a-referencias-y-su-validez)
 8. [Cómo funciona el borrow checker](#módulo-8-cómo-funciona-el-borrow-checker)
-9. [Proyecto integrador: analizador de texto](#proyecto-integrador-analizador-de-texto)
+9. [Proyecto integrador: auditoría de eventos sin copias innecesarias](#proyectointegradoraditoriadeeventossincopiasinnecesarias)
 10. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 11. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 12. [Errores frecuentes del compilador](#errores-frecuentes-del-compilador)
@@ -2154,147 +2155,16 @@ El compilador se queja
 
 ---
 
-# Proyecto integrador: analizador de texto
+# Proyecto integrador: auditoría de eventos sin copias innecesarias
 
-Este programa usa **todo el Nivel 3**: ownership (el texto vive en un `String`), préstamos inmutables (`&`), préstamos mutables (`&mut`), mover un valor a un `Vec`, slices que apuntan al texto original (cero copias) y un struct con lifetime.
+El encargo empresarial de este nivel consiste en analizar logs de acceso usando ownership, borrowing, slices y lifetimes para evitar copias y referencias inválidas.
 
-Crea un proyecto con `cargo new analizador` y pega esto en `src/main.rs`:
+**Proyecto independiente:** [Abrir el enunciado completo](/proyectos/rust-nivel-3-auditoria-eventos/).
 
-```rust
-use std::collections::HashMap;
-
-/// Analiza un texto SIN copiarlo: solo guarda una referencia (un préstamo).
-struct Analizador<'a> {
-    texto: &'a str,
-}
-
-impl<'a> Analizador<'a> {
-    fn new(texto: &'a str) -> Self {
-        Analizador { texto }
-    }
-
-    fn total_palabras(&self) -> usize {
-        self.texto.split_whitespace().count()
-    }
-
-    /// Devuelve la palabra más larga: un slice del TEXTO ORIGINAL (lifetime 'a).
-    fn palabra_mas_larga(&self) -> Option<&'a str> {
-        let mut mejor: Option<&'a str> = None;
-        for palabra in self.texto.split_whitespace() {
-            let es_mejor = match mejor {
-                Some(actual) => palabra.len() > actual.len(),
-                None => true,
-            };
-            if es_mejor {
-                mejor = Some(palabra);
-            }
-        }
-        mejor
-    }
-
-    /// Frecuencia de cada palabra. Las claves son slices del texto original.
-    fn frecuencias(&self) -> HashMap<&'a str, usize> {
-        let mut mapa = HashMap::new();
-        for palabra in self.texto.split_whitespace() {
-            *mapa.entry(palabra).or_insert(0) += 1;
-        }
-        mapa
-    }
-}
-
-/// &mut: modifica el String original (no devuelve nada nuevo).
-fn normalizar(texto: &mut String) {
-    *texto = texto.replace(',', "").replace('.', "").to_lowercase();
-}
-
-/// Toma la PROPIEDAD de `texto` y la guarda en el historial.
-fn guardar(historial: &mut Vec<String>, texto: String) {
-    historial.push(texto);
-}
-
-/// Dos referencias, un resultado: el lifetime lo ata a ambas.
-fn mas_larga<'a>(a: &'a str, b: &'a str) -> &'a str {
-    if a.len() >= b.len() { a } else { b }
-}
-
-fn main() {
-    // 1) `texto` es el DUEÑO del contenido.
-    let mut texto = String::from("El gato, el perro. El pez y el gato.");
-    normalizar(&mut texto);                              // préstamo mutable temporal
-    println!("Texto normalizado: {texto}");
-
-    // 2) Bloque de análisis: el Analizador PRESTA `texto` mientras exista.
-    {
-        let analizador = Analizador::new(&texto);        // préstamo inmutable
-
-        // texto.push_str(" extra");                     // ❌ E0502: `texto` está prestado
-        println!("Palabras: {}", analizador.total_palabras());
-
-        let frecuencias = analizador.frecuencias();
-        let mut palabras: Vec<&&str> = frecuencias.keys().collect();
-        palabras.sort();
-        println!("Frecuencias:");
-        for p in palabras {
-            println!("  {p}: {}", frecuencias[p]);
-        }
-
-        let larga = analizador.palabra_mas_larga();      // Option<&str> apuntando a `texto`
-        println!("Más larga: {:?}", larga);
-    }   // ← aquí terminan TODOS los préstamos de `texto`
-
-    // 3) Sin préstamos vivos, el dueño puede modificar de nuevo.
-    texto.push_str(" extra");
-
-    // 4) Transferir la propiedad al historial.
-    let mut historial: Vec<String> = Vec::new();
-    guardar(&mut historial, texto);                      // `texto` se MUEVE al Vec
-    // println!("{texto}");                              // ❌ E0382: ya no es nuestro
-    println!("Historial: {:?}", historial);
-
-    // 5) Lifetime en una función con dos referencias.
-    let ganadora = mas_larga("rust", "ownership");
-    println!("Más larga entre \"rust\" y \"ownership\": {ganadora}");
-}
-```
-
-**Salida esperada** (con `cargo run`; las frecuencias se muestran ordenadas porque ordenamos las claves):
-
-```
-Texto normalizado: el gato el perro el pez y el gato
-Palabras: 9
-Frecuencias:
-  el: 4
-  gato: 2
-  perro: 1
-  pez: 1
-  y: 1
-Más larga: Some("perro")
-Historial: ["el gato el perro el pez y el gato extra"]
-Más larga entre "rust" y "ownership": ownership
-```
-
-**Qué concepto aparece y dónde:**
-
-| Concepto | Dónde |
-|---|---|
-| **Ownership** | `texto` es dueño del `String`; `historial` pasa a ser dueño tras `guardar` |
-| **Move** | `guardar(&mut historial, texto)` mueve `texto`; no se puede usar después |
-| **`&T`** | `Analizador::new(&texto)`, métodos con `&self` |
-| **`&mut T`** | `normalizar(&mut texto)`, `guardar(&mut historial, ..)` |
-| **Aliasing** | Mientras `analizador` vive, no se puede modificar `texto` |
-| **Slices** | `palabra_mas_larga` y las claves de `frecuencias` son `&str` del texto original |
-| **Lifetimes** | `Analizador<'a>`, `Option<&'a str>`, `mas_larga<'a>` |
-| **Borrow checker (NLL)** | El bloque `{ }` marca dónde terminan los préstamos |
-
-**Preguntas para discutir en clase:**
-
-1. ¿Qué error saldría si quitáramos el bloque `{ }` y dejáramos `analizador` vivo hasta el final, usándolo después de `texto.push_str(...)`?
-2. ¿Por qué `palabra_mas_larga` devuelve `Option<&'a str>` y no `Option<String>`? ¿Qué se ahorra? ¿Qué se pierde?
-3. ¿Qué pasaría si `guardar` recibiera `texto: &String` en lugar de `String`? ¿Podría guardarlo en un `Vec<String>`?
-4. ¿Por qué `mas_larga` necesita `'a` pero `normalizar` no?
-5. **Reto:** cambia `Analizador` para que guarde un `String` propio en vez de `&'a str`. ¿Qué anotaciones desaparecen? ¿Qué ventajas y desventajas aparecen?
+**Módulos integrados:** revisa en el enunciado qué requisito empresarial pone en práctica cada módulo del nivel.
 
 ---
+
 
 # Ejercicios con soluciones
 
