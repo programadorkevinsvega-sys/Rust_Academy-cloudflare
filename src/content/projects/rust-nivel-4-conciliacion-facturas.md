@@ -16,6 +16,16 @@ moduleName: "Módulos 1–9: Option, Result, patrones, operador ?, panic, unwrap
 
 # Misión del proyecto
 
+## Código fuente ejecutable
+
+El código de referencia explicado en este documento también está disponible como una aplicación Rust independiente, separada en las carpetas `modelo/`, `service/`, `controlador/` y `vista/`.
+
+- [Abrir el proyecto y sus archivos fuente en GitHub](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/tree/main/proyectos/rust-nivel-4-conciliacion-facturas)
+- Ejecutar desde la raíz del repositorio: `cargo run --manifest-path proyectos/rust-nivel-4-conciliacion-facturas/Cargo.toml`
+- Ejecutar sus pruebas: `cargo test --manifest-path proyectos/rust-nivel-4-conciliacion-facturas/Cargo.toml`
+
+Esta versión utiliza datos simulados; no conecta con sistemas empresariales reales.
+
 ## Contexto de empresa
 
 Logística Andina recibe cada día archivos de facturas de distintos proveedores. Los archivos llegan con campos vacíos, identificadores repetidos, importes mal digitados y órdenes de compra que no coinciden. El proceso actual depende de hojas de cálculo y falla de forma poco clara cuando encuentra una fila incorrecta.
