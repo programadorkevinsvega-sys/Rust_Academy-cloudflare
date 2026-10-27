@@ -121,7 +121,18 @@ No implementes todavía persistencia, lectura de CSV, concurrencia, structs, col
 
 # Solución de referencia completa
 
-Esta implementación sirve como solución de referencia. Crea una carpeta llamada cierre_cafeteria, ejecuta cargo new cierre_cafeteria y reemplaza src/main.rs por este código. No necesita dependencias externas.
+Esta implementación sirve como solución de referencia. Crea una carpeta llamada cierre_cafeteria y coloca los siguientes archivos en ella. No necesita dependencias externas.
+
+## Cargo.toml
+
+```toml
+[package]
+name = "cierre_cafeteria"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+```
 
 ## src/main.rs
 
