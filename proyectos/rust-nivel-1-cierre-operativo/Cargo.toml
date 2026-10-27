@@ -1,0 +1,6 @@
+[package]
+name = "rust-nivel-1-cierre-operativo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
