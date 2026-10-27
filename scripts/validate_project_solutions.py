@@ -84,7 +84,7 @@ def main() -> None:
             if files is None:
                 continue
             project_root = temp_root / slug
-            for relative, content in files.items()
+            for relative, content in files.items():
                 output = project_root / relative
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_text(content, encoding="utf-8")

@@ -131,199 +131,47 @@ No implementes todavía persistencia, lectura de CSV, concurrencia, structs, col
 
 # Solución de referencia completa
 
-Esta implementación sirve como solución de referencia. Crea una carpeta llamada cierre_cafeteria y coloca los siguientes archivos en ella. No necesita dependencias externas.
+La solución ejecutable está separada en capas. No concentres las reglas del negocio en `src/main.rs`: el punto de entrada solo declara los módulos y llama al controlador.
 
-## Cargo.toml
+## Arquitectura requerida
 
-```toml
-[package]
-name = "cierre_cafeteria"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
+```text
+rust-nivel-1-cierre-operativo/
+├── Cargo.toml
+└── src/
+    ├── main.rs
+    ├── modelo/
+    │   └── mod.rs
+    ├── vista/
+    │   └── mod.rs
+    ├── controlador/
+    │   └── mod.rs
+    └── service/
+        └── mod.rs
 ```
 
-## src/main.rs
+- **Modelo:** define las ventas de demostración, la meta diaria y los tipos de datos del cierre.
+- **Service:** calcula ingresos, unidades, promedios, línea de mayor ingreso y cumplimiento de la meta.
+- **Controlador:** coordina el cálculo del cierre y entrega los resultados a la vista.
+- **Vista:** presenta el resumen de caja y los indicadores operativos.
+- **main.rs:** declara las capas y ejecuta el controlador.
 
-```rust
-const META_DIARIA_COP: u64 = 330_000;
+## Código fuente por archivo
 
-type Venta = (&'static str, u64, u32);
+- [Cargo.toml](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-1-cierre-operativo/Cargo.toml)
+- [src/main.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-1-cierre-operativo/src/main.rs)
+- [Modelo: src/modelo/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-1-cierre-operativo/src/modelo/mod.rs)
+- [Service: src/service/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-1-cierre-operativo/src/service/mod.rs)
+- [Vista: src/vista/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-1-cierre-operativo/src/vista/mod.rs)
+- [Controlador: src/controlador/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-1-cierre-operativo/src/controlador/mod.rs)
 
-const VENTAS: [Venta; 6] = [
-    ("Café americano", 4_500, 18),
-    ("Capuchino", 6_500, 12),
-    ("Chocolate", 5_000, 8),
-    ("Croissant", 4_000, 10),
-    ("Sándwich", 11_000, 7),
-    ("Agua", 3_000, 9),
-];
+## Ejecutar y probar
 
-fn ingreso_de_linea(precio_cop: u64, unidades: u32) -> u64 {
-    precio_cop * u64::from(unidades)
-}
-
-fn ingreso_total(ventas: &[Venta]) -> u64 {
-    let mut total = 0_u64;
-    for &(_, precio, unidades) in ventas {
-        total += ingreso_de_linea(precio, unidades);
-    }
-    total
-}
-
-fn unidades_totales(ventas: &[Venta]) -> u32 {
-    let mut total = 0_u32;
-    for &(_, _, unidades) in ventas {
-        total += unidades;
-    }
-    total
-}
-
-// La tupla devuelta indica (promedio, hay_datos).
-fn promedio_por_linea(ventas: &[Venta]) -> (f64, bool) {
-    if ventas.is_empty() {
-        return (0.0, false);
-    }
-    (ingreso_total(ventas) as f64 / ventas.len() as f64, true)
-}
-
-fn linea_de_mayor_ingreso(ventas: &[Venta]) -> (&'static str, u64, bool) {
-    if ventas.is_empty() {
-        return ("Sin datos", 0, false);
-    }
-
-    let (mut nombre_mejor, precio_inicial, unidades_iniciales) = ventas[0];
-    let mut mayor = ingreso_de_linea(precio_inicial, unidades_iniciales);
-
-    for &(nombre, precio, unidades) in &ventas[1..] {
-        let ingreso = ingreso_de_linea(precio, unidades);
-        if ingreso > mayor {
-            mayor = ingreso;
-            nombre_mejor = nombre;
-        }
-    }
-    (nombre_mejor, mayor, true)
-}
-
-fn clasificar_cierre(total_cop: u64) -> &'static str {
-    if total_cop >= META_DIARIA_COP {
-        "Meta cumplida"
-    } else if total_cop == 0 {
-        "Sin ventas"
-    } else {
-        "Por debajo de la meta"
-    }
-}
-
-fn imprimir_reporte(ventas: &[Venta]) {
-    println!("================================================");
-    println!("            CIERRE DIARIO - CAFÉ CENTRAL");
-    println!("================================================");
-
-    for (indice, &(producto, precio, unidades)) in ventas.iter().enumerate() {
-        let ingreso = ingreso_de_linea(precio, unidades);
-        println!(
-            "{:>2}. {:<20} {:>3} uds. x ${:>7} = ${:>9}",
-            indice + 1, producto, unidades, precio, ingreso
-        );
-    }
-
-    let total = ingreso_total(ventas);
-    let unidades = unidades_totales(ventas);
-    let (promedio, hay_promedio) = promedio_por_linea(ventas);
-    let (producto_mayor, ingreso_mayor, hay_mayor) = linea_de_mayor_ingreso(ventas);
-
-    println!("------------------------------------------------");
-    println!("Unidades vendidas: {unidades}");
-    println!("Ingreso total:     ${total}");
-    println!("Meta diaria:       ${META_DIARIA_COP}");
-
-    if hay_promedio {
-        println!("Promedio por línea: ${promedio:.2}");
-    } else {
-        println!("Promedio por línea: no disponible (sin ventas)");
-    }
-
-    if hay_mayor {
-        println!("Mayor ingreso: {producto_mayor} (${ingreso_mayor})");
-    } else {
-        println!("Mayor ingreso: no disponible (sin ventas)");
-    }
-
-    let estado = match clasificar_cierre(total) {
-        "Meta cumplida" => "Objetivo diario alcanzado",
-        "Sin ventas" => "No se registraron ventas",
-        _ => "Revisar el objetivo diario",
-    };
-    println!("Resultado: {estado}");
-    println!("================================================");
-}
-
-fn main() {
-    imprimir_reporte(&VENTAS);
-
-    // Caso vacío: no divide por cero ni accede a un elemento inexistente.
-    let ventas_vacias: [Venta; 0] = [];
-    let (promedio, hay_datos) = promedio_por_linea(&ventas_vacias);
-    println!(
-        "Prueba sin ventas: promedio={promedio}, hay_datos={hay_datos}, estado={}",
-        clasificar_cierre(ingreso_total(&ventas_vacias))
-    );
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn calcula_el_ingreso_total_de_la_jornada() {
-        assert_eq!(ingreso_total(&VENTAS), 343_000);
-        assert_eq!(unidades_totales(&VENTAS), 64);
-    }
-
-    #[test]
-    fn una_linea_sin_unidades_no_genera_ingreso() {
-        assert_eq!(ingreso_de_linea(5_000, 0), 0);
-    }
-
-    #[test]
-    fn el_promedio_de_una_lista_vacia_no_divide_por_cero() {
-        let ventas_vacias: [Venta; 0] = [];
-        assert_eq!(promedio_por_linea(&ventas_vacias), (0.0, false));
-        assert_eq!(clasificar_cierre(ingreso_total(&ventas_vacias)), "Sin ventas");
-    }
-
-    #[test]
-    fn clasifica_el_cumplimiento_de_la_meta() {
-        assert_eq!(clasificar_cierre(250_000), "Por debajo de la meta");
-        assert_eq!(clasificar_cierre(META_DIARIA_COP), "Meta cumplida");
-    }
-
-    #[test]
-    fn detecta_la_linea_de_mayor_ingreso() {
-        let (nombre, ingreso, existe) = linea_de_mayor_ingreso(&VENTAS);
-        assert_eq!(nombre, "Café americano");
-        assert_eq!(ingreso, 81_000);
-        assert!(existe);
-    }
-}
-```
-
-## Ejecutar y comprobar
+Desde la raíz del repositorio:
 
 ```bash
-cargo run
-cargo check
+cargo run --manifest-path proyectos/rust-nivel-1-cierre-operativo/Cargo.toml
+cargo test --manifest-path proyectos/rust-nivel-1-cierre-operativo/Cargo.toml
 ```
 
-Con los datos iniciales, el ingreso total debe ser **343.000 COP**, las unidades vendidas **64**, y el producto con mayor ingreso debe ser **Café americano**, con **81.000 COP**. El promedio por línea es aproximadamente **57.166,67 COP**.
-
-## Qué demuestra la solución
-
-- Mantiene las ventas en un array fijo de tuplas.
-- Separa los cálculos en funciones.
-- Maneja una lista vacía al calcular el promedio y el máximo.
-- Guarda importes como enteros en pesos y convierte a f64 solamente para el promedio.
-- Usa constantes, variables, bucles, operadores, condicionales, funciones, tuplas y arrays.
-
+El conjunto de ventas es demostrativo. En una aplicación real, los movimientos de caja deberían provenir de registros autorizados y conservar trazabilidad para el cierre de cada jornada.
