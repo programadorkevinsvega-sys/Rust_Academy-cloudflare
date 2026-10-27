@@ -33,7 +33,7 @@ tags: ["Option", "Result", "errores", "panic", "código seguro"]
 7. [`unwrap()` y `expect()` con criterio](#módulo-7-unwrap-y-expect-con-criterio)
 8. [Propagación de errores y errores personalizados](#módulo-8-propagación-de-errores-y-errores-personalizados)
 9. [Código seguro: diseñar para que el error sea explícito o imposible](#módulo-9-código-seguro-diseñar-para-que-el-error-sea-explícito-o-imposible)
-9. [Proyecto integrador: conciliación segura de facturas](#proyectointegradorconciliacionsegradeactras)
+10. [Proyecto integrador: conciliación segura de facturas](#proyecto-integrador-conciliacion-segura-de-facturas)
 11. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 12. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 13. [Errores frecuentes del compilador](#errores-frecuentes-del-compilador)
@@ -2887,7 +2887,7 @@ Propuesta de 6 sesiones de ~90 minutos:
 | **3** | Módulo 4 (pattern matching, `if let`, `let else`, `while let`) | Ejercicios 4.1–4.4 |
 | **4** | Módulo 5 (`?`) + Módulo 6 (`panic!`) | Ejercicios 5.1–5.3 y 6.1–6.2; provocar panics a propósito y leer el mensaje |
 | **5** | Módulo 7 (`unwrap`/`expect`) + Módulo 8 (errores personalizados) | Ejercicios 7.1 y 8.1; refactorizar un programa lleno de `unwrap` |
-| **6** | Módulo 9 (código seguro) + Proyecto integrador | Ejercicio 9.1; ampliar el procesador de ventas con retos del proyecto |
+| **6** | Módulo 9 (código seguro) + Proyecto integrador | Ejercicio 9.1; ampliar el conciliador de facturas con los retos del proyecto |
 
 ### Recomendaciones de enseñanza
 
