@@ -263,3 +263,154 @@ cargo test
 
 Con los datos incluidos, el ingreso total es 343.000 COP, se venden 64 unidades y el café americano genera el mayor ingreso individual: 81.000 COP. Son datos sintéticos de práctica.
 
+
+---
+
+# Solución de referencia — código completo
+
+Esta implementación sirve como solución de referencia. Crea una carpeta llamada cierre_cafeteria, ejecuta cargo new cierre_cafeteria y reemplaza src/main.rs por este código. No necesita dependencias externas.
+
+```rust
+const META_DIARIA_COP: u64 = 330_000;
+
+type Venta = (&'static str, u64, u32);
+
+const VENTAS: [Venta; 6] = [
+    ("Café americano", 4_500, 18),
+    ("Capuchino", 6_500, 12),
+    ("Chocolate", 5_000, 8),
+    ("Croissant", 4_000, 10),
+    ("Sándwich", 11_000, 7),
+    ("Agua", 3_000, 9),
+];
+
+fn ingreso_de_linea(precio_cop: u64, unidades: u32) -> u64 {
+    precio_cop * u64::from(unidades)
+}
+
+fn ingreso_total(ventas: &[Venta]) -> u64 {
+    let mut total = 0_u64;
+    for &(_, precio, unidades) in ventas {
+        total += ingreso_de_linea(precio, unidades);
+    }
+    total
+}
+
+fn unidades_totales(ventas: &[Venta]) -> u32 {
+    let mut total = 0_u32;
+    for &(_, _, unidades) in ventas {
+        total += unidades;
+    }
+    total
+}
+
+// La tupla devuelta indica (promedio, hay_datos).
+fn promedio_por_linea(ventas: &[Venta]) -> (f64, bool) {
+    if ventas.is_empty() {
+        return (0.0, false);
+    }
+    (ingreso_total(ventas) as f64 / ventas.len() as f64, true)
+}
+
+fn linea_de_mayor_ingreso(ventas: &[Venta]) -> (&'static str, u64, bool) {
+    if ventas.is_empty() {
+        return ("Sin datos", 0, false);
+    }
+
+    let (mut nombre_mejor, precio_inicial, unidades_iniciales) = ventas[0];
+    let mut mayor = ingreso_de_linea(precio_inicial, unidades_iniciales);
+
+    for &(nombre, precio, unidades) in &ventas[1..] {
+        let ingreso = ingreso_de_linea(precio, unidades);
+        if ingreso > mayor {
+            mayor = ingreso;
+            nombre_mejor = nombre;
+        }
+    }
+    (nombre_mejor, mayor, true)
+}
+
+fn clasificar_cierre(total_cop: u64) -> &'static str {
+    if total_cop >= META_DIARIA_COP {
+        "Meta cumplida"
+    } else if total_cop == 0 {
+        "Sin ventas"
+    } else {
+        "Por debajo de la meta"
+    }
+}
+
+fn imprimir_reporte(ventas: &[Venta]) {
+    println!("================================================");
+    println!("            CIERRE DIARIO - CAFÉ CENTRAL");
+    println!("================================================");
+
+    for (indice, &(producto, precio, unidades)) in ventas.iter().enumerate() {
+        let ingreso = ingreso_de_linea(precio, unidades);
+        println!(
+            "{:>2}. {:<20} {:>3} uds. x ${:>7} = ${:>9}",
+            indice + 1, producto, unidades, precio, ingreso
+        );
+    }
+
+    let total = ingreso_total(ventas);
+    let unidades = unidades_totales(ventas);
+    let (promedio, hay_promedio) = promedio_por_linea(ventas);
+    let (producto_mayor, ingreso_mayor, hay_mayor) = linea_de_mayor_ingreso(ventas);
+
+    println!("------------------------------------------------");
+    println!("Unidades vendidas: {unidades}");
+    println!("Ingreso total:     ${total}");
+    println!("Meta diaria:       ${META_DIARIA_COP}");
+
+    if hay_promedio {
+        println!("Promedio por línea: ${promedio:.2}");
+    } else {
+        println!("Promedio por línea: no disponible (sin ventas)");
+    }
+
+    if hay_mayor {
+        println!("Mayor ingreso: {producto_mayor} (${ingreso_mayor})");
+    } else {
+        println!("Mayor ingreso: no disponible (sin ventas)");
+    }
+
+    let estado = match clasificar_cierre(total) {
+        "Meta cumplida" => "Objetivo diario alcanzado",
+        "Sin ventas" => "No se registraron ventas",
+        _ => "Revisar el objetivo diario",
+    };
+    println!("Resultado: {estado}");
+    println!("================================================");
+}
+
+fn main() {
+    imprimir_reporte(&VENTAS);
+
+    // Caso vacío: no divide por cero ni accede a un elemento inexistente.
+    let ventas_vacias: [Venta; 0] = [];
+    let (promedio, hay_datos) = promedio_por_linea(&ventas_vacias);
+    println!(
+        "Prueba sin ventas: promedio={promedio}, hay_datos={hay_datos}, estado={}",
+        clasificar_cierre(ingreso_total(&ventas_vacias))
+    );
+}
+```
+
+## Ejecutar y comprobar
+
+```bash
+cargo run
+cargo check
+```
+
+Con los datos iniciales, el ingreso total debe ser **343.000 COP**, las unidades vendidas **64**, y el producto con mayor ingreso debe ser **Café americano**, con **81.000 COP**. El promedio por línea es aproximadamente **57.166,67 COP**.
+
+## Qué demuestra la solución
+
+- Mantiene las ventas en un array fijo de tuplas.
+- Separa los cálculos en funciones.
+- Maneja una lista vacía al calcular el promedio y el máximo.
+- Guarda importes como enteros en pesos y convierte a f64 solamente para el promedio.
+- Usa constantes, variables, bucles, operadores, condicionales, funciones, tuplas y arrays.
+
