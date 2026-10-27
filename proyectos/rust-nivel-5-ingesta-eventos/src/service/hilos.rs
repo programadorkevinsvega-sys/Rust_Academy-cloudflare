@@ -40,6 +40,10 @@ pub fn ejecutar(eventos: &[Evento]) -> Result<Metricas, String> {
                     Err(_) => break,
                 };
 
+                println!(
+                    "[thread] pedido={} tipo={} fuente={}",
+                    evento.pedido_id, evento.tipo, evento.fuente
+                );
                 let actual = activos.fetch_add(1, Ordering::SeqCst) + 1;
                 maximos.fetch_max(actual, Ordering::SeqCst);
                 let limite = *limite_demora.read().unwrap_or_else(|p| p.into_inner());
