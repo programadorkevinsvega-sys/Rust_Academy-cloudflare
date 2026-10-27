@@ -99,6 +99,7 @@ public/
 └── _headers
 ```
 
+
 ## Límites de esta versión
 - El progreso se queda en el navegador actual; no se sincroniza entre dispositivos.
 - No hay cuentas, pagos, certificados verificables ni guardado centralizado.
