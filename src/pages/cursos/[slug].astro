@@ -55,7 +55,7 @@ const { Content, frontmatter } = course;
     </div>
   </div>
 
-  <script>
+<script>
     const article = document.querySelector<HTMLElement>('#course-content');
     const toc = document.querySelector<HTMLElement>('#course-toc');
 
@@ -64,7 +64,6 @@ const { Content, frontmatter } = course;
       const courseTitle = allHeadings.find((heading) => heading.tagName === 'H1');
       const tocHeading = allHeadings.find((heading) => heading.textContent?.trim().toLocaleLowerCase('es') === 'índice');
 
-      // El índice escrito dentro del Markdown duplica la navegación lateral; se oculta.
       if (tocHeading) {
         let node: Element | null = tocHeading;
         while (node) {
@@ -77,25 +76,32 @@ const { Content, frontmatter } = course;
 
       const headings = [...article.querySelectorAll<HTMLElement>('h1, h2, h3')]
         .filter((heading) => heading !== courseTitle && !heading.closest('.article-end'));
-
-      // El título general no es una lección. Los encabezados de módulo y subtema sí.
       const lessons = headings.filter((heading) => {
         const text = heading.textContent?.trim() ?? '';
         return text.length > 0 && !/^¡Buen trabajo!$/i.test(text);
       });
-
       const children = [...article.children];
       const endCard = article.querySelector<HTMLElement>('.article-end');
       const endCardIndex = endCard ? children.indexOf(endCard) : children.length;
       const lessonHeadings = lessons.filter((heading) => children.includes(heading));
-      const list = document.createElement('ul');
       let activeHeading: HTMLElement | null = null;
+      const list = document.createElement('ul');
+      list.className = 'toc-list';
+
+      const setExpanded = (li: HTMLLIElement, expanded: boolean) => {
+        const sublist = li.querySelector<HTMLElement>(':scope > ul');
+        const toggle = li.querySelector<HTMLButtonElement>(':scope > .toc-parent-row > .toc-toggle');
+        if (!sublist || !toggle) return;
+        sublist.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? '−' : '+';
+        li.classList.toggle('is-expanded', expanded);
+      };
 
       const showLesson = (selected: HTMLElement, updateHash = true) => {
         const selectedIndex = children.indexOf(selected);
         const selectedLevel = Number(selected.tagName.substring(1));
         let endIndex = endCardIndex;
-
         for (let i = selectedIndex + 1; i < endCardIndex; i++) {
           const el = children[i];
           if (/^H[1-3]$/.test(el.tagName) && Number(el.tagName.substring(1)) <= selectedLevel) {
@@ -103,28 +109,32 @@ const { Content, frontmatter } = course;
             break;
           }
         }
-
         children.forEach((child, index) => {
           (child as HTMLElement).hidden = index < selectedIndex || index >= endIndex;
         });
         if (endCard) endCard.hidden = true;
 
-        toc.querySelectorAll('a').forEach((link) => {
+        toc.querySelectorAll<HTMLAnchorElement>('a[data-target]').forEach((link) => {
           const isActive = link.dataset.target === selected.id;
           link.classList.toggle('is-active', isActive);
           if (isActive) link.setAttribute('aria-current', 'page');
           else link.removeAttribute('aria-current');
         });
+        const activeLi = toc.querySelector<HTMLAnchorElement>(`a[data-target="${CSS.escape(selected.id)}"]`)?.closest('li');
+        const parentLi = activeLi?.parentElement?.closest('li') as HTMLLIElement | null;
+        if (parentLi) setExpanded(parentLi, true);
         activeHeading = selected;
         if (updateHash) history.replaceState(null, '', '#' + selected.id);
         selected.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
 
+      let previousParent: HTMLLIElement | null = null;
+      let previousSublist: HTMLUListElement | null = null;
+
       lessonHeadings.forEach((heading, index) => {
         const text = heading.textContent?.trim() || 'Tema ' + (index + 1);
         heading.id ||= 'tema-' + (index + 1);
         const li = document.createElement('li');
-        if (heading.tagName === 'H3') li.classList.add('toc-sub');
         const link = document.createElement('a');
         link.href = '#' + heading.id;
         link.dataset.target = heading.id;
@@ -133,12 +143,42 @@ const { Content, frontmatter } = course;
           event.preventDefault();
           showLesson(heading);
         });
-        li.append(link);
+
+        if (heading.tagName === 'H3' && previousParent && previousSublist) {
+          li.classList.add('toc-sub');
+          li.append(link);
+          previousSublist.append(li);
+          return;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'toc-parent-row';
+        row.append(link);
+        li.append(row);
         list.append(li);
+
+        if (heading.tagName === 'H2') {
+          const sublist = document.createElement('ul');
+          sublist.className = 'toc-children';
+          sublist.hidden = true;
+          const toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'toc-toggle';
+          toggle.textContent = '+';
+          toggle.setAttribute('aria-label', 'Expandir subsecciones de ' + text);
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.addEventListener('click', () => setExpanded(li, sublist.hidden));
+          row.append(toggle);
+          li.append(sublist);
+          previousParent = li;
+          previousSublist = sublist;
+        } else {
+          previousParent = null;
+          previousSublist = null;
+        }
       });
 
       toc.replaceChildren(list);
-
       const requested = location.hash ? lessonHeadings.find((heading) => heading.id === decodeURIComponent(location.hash.slice(1))) : null;
       const firstLesson = requested || lessonHeadings.find((heading) => /^H[1-3]$/.test(heading.tagName));
       if (firstLesson) showLesson(firstLesson, false);
@@ -160,7 +200,6 @@ const { Content, frontmatter } = course;
       });
       toc.append(finishButton);
 
-      // Si el usuario usa Atrás/Adelante con hashes, sincroniza la lección visible.
       window.addEventListener('hashchange', () => {
         const target = lessonHeadings.find((heading) => heading.id === decodeURIComponent(location.hash.slice(1)));
         if (target && target !== activeHeading) showLesson(target, false);
