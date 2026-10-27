@@ -33,7 +33,7 @@ tags: ["variables", "tipos", "funciones", "control de flujo", "arrays", "tuplas"
 6. [Funciones, parámetros y valores de retorno](#módulo-6-funciones-parámetros-y-valores-de-retorno)
 7. [Ámbitos de variables (scope)](#módulo-7-ámbitos-de-variables-scope)
 8. [Tuplas y arrays](#módulo-8-tuplas-y-arrays)
-9. [Proyecto integrador: cierre operativo de una cafetería](#proyectointegradorcierreoperativodenacaeteria)
+9. [Proyecto integrador: cierre operativo de una cafetería](#proyecto-integrador-cierre-operativo-de-una-cafeteria)
 10. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 11. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 12. [Errores frecuentes del compilador](#errores-frecuentes-del-compilador)
@@ -3004,7 +3004,7 @@ Propuesta de 5 sesiones de ~90 minutos (ajustable):
 | **2** | Módulo 2 (bool, char, String) + Módulo 3 (operadores y conversiones) | Ejercicios 2.1, 2.2, 3.1, 3.2, 3.3 |
 | **3** | Módulo 4 (`if`, `match`) + Módulo 5 (`loop`, `while`, `for`) | Ejercicios 4.1, 4.2, 5.1–5.4 |
 | **4** | Módulo 6 (funciones) + Módulo 7 (scope) | Ejercicios 6.1–6.3, 7.1, 7.2 |
-| **5** | Módulo 8 (tuplas y arrays) + Proyecto integrador | Ejercicios 8.1–8.3 y modificar el proyecto de notas |
+| **5** | Módulo 8 (tuplas y arrays) + Proyecto integrador | Ejercicios 8.1–8.3 y modificar el proyecto de cierre operativo de la cafetería |
 
 ### Recomendaciones de enseñanza
 
