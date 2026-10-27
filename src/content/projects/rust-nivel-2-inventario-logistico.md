@@ -407,7 +407,7 @@ fn main() {
         Producto::nuevo(3, "SKU-ARROZ", "Arroz", Categoria::Comida, 4_200, 25, 6),
         Producto::nuevo(4, "SKU-JABON", "Jabón", Categoria::Aseo, 3_800, 15, 5),
         Producto::nuevo(5, "SKU-PAN", "Pan tajado", Categoria::Comida, 6_500, 4, 5),
-        Producto::nuevo(6, "SKU-GASEOSA", "Gaseosa", Categoria::Bebida, 3_500, 30, 8),
+        Producto::nuevo(6, "SKU-TECLADO", "Teclado", Categoria::Tecnologia, 65_000, 7, 2),
     ];
 
     for resultado in productos {
