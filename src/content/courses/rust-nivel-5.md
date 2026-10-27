@@ -36,7 +36,7 @@ tags: ["threads", "Send", "Sync", "async", "await", "Tokio"]
 9. [Tokio: canales y sincronización](#módulo-9-tokio-canales-y-sincronización)
 10. [Tokio: cancelación](#módulo-10-tokio-cancelación)
 11. [Timeouts, backpressure y límites de concurrencia](#módulo-11-timeouts-backpressure-y-límites-de-concurrencia)
-9. [Proyecto integrador: ingesta de eventos de pedidos en tiempo real](#proyectointegradoringestadeeventosdepedidosentiemporeal)
+12. [Proyecto integrador: ingesta de eventos de pedidos en tiempo real](#proyecto-integrador-ingesta-de-eventos-de-pedidos-en-tiempo-real)
 13. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 14. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 15. [Errores frecuentes](#errores-frecuentes)
