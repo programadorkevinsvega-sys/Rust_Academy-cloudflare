@@ -7,7 +7,7 @@ Plataforma educativa estática y extensible para aprender lenguajes de programac
 - Sin backend ni base de datos: no hay API propia, autenticación ni servicios de servidor.
 - Progreso local: los cursos completados se guardan en localStorage del navegador.
 - Multilenguaje: el catálogo vive en src/data/languages.ts; cada curso es Markdown con metadatos.
-- Los cursos originales adjuntos de Rust Nivel 1 y Nivel 2 se incorporan como contenido.
+- Los cinco niveles de Rust están incorporados como contenido Markdown; se conservan los archivos originales de los cursos en la raíz del repositorio.
 
 ## Ejecutar localmente
 Requisitos: Node.js 22 recomendado, npm y Git.
@@ -33,6 +33,14 @@ El sitio compilado queda en dist/.
 5. Guarda y despliega.
 
 Cada push a main dispara una nueva compilación. No configures un adaptador de Cloudflare Workers: el proyecto genera recursos estáticos y no necesita runtime de servidor.
+
+## Cursos de Rust incluidos
+
+- Nivel 1: Fundamentos del lenguaje.
+- Nivel 2: Tipos compuestos, colecciones y abstracciones iniciales.
+- Nivel 3: Ownership, borrowing y lifetimes.
+- Nivel 4: Manejo de errores y código seguro.
+- Nivel 5: Concurrencia y programación asíncrona.
 
 ## Añadir otro lenguaje
 1. Agrega el lenguaje en src/data/languages.ts, con un id corto en minúsculas.
