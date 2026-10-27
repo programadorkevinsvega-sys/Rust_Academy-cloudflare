@@ -87,16 +87,82 @@ const { Content, frontmatter } = course;
       let activeHeading: HTMLElement | null = null;
       const list = document.createElement('ul');
       list.className = 'toc-list';
+      const tocItems: { heading: HTMLElement; li: HTMLLIElement; link: HTMLAnchorElement; children: HTMLUListElement | null; level: number }[] = [];
+      const stack: { level: number; li: HTMLLIElement; children: HTMLUListElement }[] = [];
 
       const setExpanded = (li: HTMLLIElement, expanded: boolean) => {
-        const sublist = li.querySelector<HTMLElement>(':scope > ul');
+        const sublist = li.querySelector<HTMLElement>(':scope > ul.toc-children');
         const toggle = li.querySelector<HTMLButtonElement>(':scope > .toc-parent-row > .toc-toggle');
         if (!sublist || !toggle) return;
         sublist.hidden = !expanded;
         toggle.setAttribute('aria-expanded', String(expanded));
         toggle.textContent = expanded ? '−' : '+';
+        toggle.setAttribute('aria-label', (expanded ? 'Contraer' : 'Expandir') + ' subsecciones de ' + (li.dataset.title || 'esta sección'));
         li.classList.toggle('is-expanded', expanded);
       };
+
+      lessonHeadings.forEach((heading, index) => {
+        const text = heading.textContent?.trim() || 'Tema ' + (index + 1);
+        heading.id ||= 'tema-' + (index + 1);
+        const level = Number(heading.tagName.substring(1));
+        const li = document.createElement('li');
+        li.dataset.title = text;
+        const row = document.createElement('div');
+        row.className = 'toc-parent-row';
+        const link = document.createElement('a');
+        link.href = '#' + heading.id;
+        link.dataset.target = heading.id;
+        link.textContent = text;
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          showLesson(heading);
+        });
+        row.append(link);
+        li.append(row);
+
+        while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+        let childrenList: HTMLUListElement | null = null;
+        if (stack.length) {
+          const parent = stack[stack.length - 1];
+          parent.children.append(li);
+          parent.li.classList.add('has-toc-children');
+          childrenList = li.querySelector<HTMLUListElement>(':scope > ul.toc-children');
+        } else {
+          list.append(li);
+        }
+
+        const item = { heading, li, link, children: null as HTMLUListElement | null, level };
+        tocItems.push(item);
+
+        // Cada encabezado que tenga descendientes recibe un control expandir/contraer.
+        const childList = document.createElement('ul');
+        childList.className = 'toc-children';
+        childList.hidden = true;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'toc-toggle';
+        toggle.textContent = '+';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Expandir subsecciones de ' + text);
+        toggle.addEventListener('click', () => setExpanded(li, childList.hidden));
+        row.append(toggle);
+        li.append(childList);
+        item.children = childList;
+        stack.push({ level, li, children: childList });
+      });
+
+      // Quitar controles a encabezados que no tengan subsecciones; mover sus hijos
+      // al nivel correcto mantiene Módulo > subtema > apartados internos.
+      for (const item of tocItems) {
+        if (!item.children || item.children.children.length === 0) {
+          item.children?.remove();
+          item.children = null;
+          item.li.classList.remove('has-toc-children');
+          item.li.querySelector(':scope > .toc-parent-row > .toc-toggle')?.remove();
+        } else if (item.heading.tagName === 'H2') {
+          item.li.classList.add('toc-sub');
+        }
+      }
 
       const showLesson = (selected: HTMLElement, updateHash = true) => {
         const selectedIndex = children.indexOf(selected);
@@ -120,63 +186,17 @@ const { Content, frontmatter } = course;
           if (isActive) link.setAttribute('aria-current', 'page');
           else link.removeAttribute('aria-current');
         });
-        const activeLi = toc.querySelector<HTMLAnchorElement>(`a[data-target="${CSS.escape(selected.id)}"]`)?.closest('li');
-        const parentLi = activeLi?.parentElement?.closest('li') as HTMLLIElement | null;
-        if (parentLi) setExpanded(parentLi, true);
+        const activeItem = tocItems.find((item) => item.heading === selected);
+        let currentLi = activeItem?.li ?? null;
+        while (currentLi) {
+          const parentLi = currentLi.parentElement?.closest('li') as HTMLLIElement | null;
+          if (parentLi) setExpanded(parentLi, true);
+          currentLi = parentLi;
+        }
         activeHeading = selected;
         if (updateHash) history.replaceState(null, '', '#' + selected.id);
         selected.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
-
-      let previousParent: HTMLLIElement | null = null;
-      let previousSublist: HTMLUListElement | null = null;
-
-      lessonHeadings.forEach((heading, index) => {
-        const text = heading.textContent?.trim() || 'Tema ' + (index + 1);
-        heading.id ||= 'tema-' + (index + 1);
-        const li = document.createElement('li');
-        const link = document.createElement('a');
-        link.href = '#' + heading.id;
-        link.dataset.target = heading.id;
-        link.textContent = text;
-        link.addEventListener('click', (event) => {
-          event.preventDefault();
-          showLesson(heading);
-        });
-
-        if (heading.tagName === 'H3' && previousParent && previousSublist) {
-          li.classList.add('toc-sub');
-          li.append(link);
-          previousSublist.append(li);
-          return;
-        }
-
-        const row = document.createElement('div');
-        row.className = 'toc-parent-row';
-        row.append(link);
-        li.append(row);
-        list.append(li);
-
-        if (heading.tagName === 'H2') {
-          const sublist = document.createElement('ul');
-          sublist.className = 'toc-children';
-          sublist.hidden = true;
-          const toggle = document.createElement('button');
-          toggle.type = 'button';
-          toggle.className = 'toc-toggle';
-          toggle.textContent = '+';
-          toggle.setAttribute('aria-label', 'Expandir subsecciones de ' + text);
-          toggle.setAttribute('aria-expanded', 'false');
-          toggle.addEventListener('click', () => setExpanded(li, sublist.hidden));
-          row.append(toggle);
-          li.append(sublist);
-          previousParent = li;
-          previousSublist = sublist;
-        } else {
-          previousParent = null;
-          previousSublist = null;
-        }
-      });
 
       toc.replaceChildren(list);
       const requested = location.hash ? lessonHeadings.find((heading) => heading.id === decodeURIComponent(location.hash.slice(1))) : null;
