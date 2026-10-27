@@ -33,7 +33,7 @@ tags: ["ownership", "structs", "enums", "módulos", "Cargo", "colecciones", "gen
 6. [Colecciones: `Vec<T>`, `HashMap<K, V>` y `HashSet<T>`](#módulo-6-colecciones-vect-hashmapk-v-y-hashsett)
 7. [Genéricos y funciones reutilizables](#módulo-7-genéricos-y-funciones-reutilizables)
 8. [Traits: comportamientos compartidos](#módulo-8-traits-comportamientos-compartidos)
-9. [Proyecto integrador: inventario y abastecimiento logístico](#proyectointegradorinventarioyabastecimientologistico)
+9. [Proyecto integrador: inventario y abastecimiento logístico](#proyecto-integrador-inventario-y-abastecimiento-logistico)
 10. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 11. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 12. [Errores frecuentes del compilador](#errores-frecuentes-del-compilador)
@@ -3560,7 +3560,7 @@ Propuesta de 6 sesiones de ~90 minutos (ajustable):
 | **3** | Módulo 3 (`impl`, métodos) | Ejercicios 3.1 y 3.2 (Contador y CuentaBancaria) |
 | **4** | Módulo 4 (módulos) + Módulo 5 (Cargo) | Ejercicios 4.1, 4.2, 5.1, 5.2; dividir un proyecto en archivos |
 | **5** | Módulo 6 (colecciones) | Ejercicios 6.1–6.3; contador de palabras |
-| **6** | Módulo 7 (genéricos) + Módulo 8 (traits) + Proyecto integrador | Ejercicios 7.1, 7.2, 8.1; modificar el proyecto de inventario |
+| **6** | Módulo 7 (genéricos) + Módulo 8 (traits) + Proyecto integrador | Ejercicios 7.1, 7.2, 8.1; modificar el proyecto de inventario logístico |
 
 ### Recomendaciones de enseñanza
 
