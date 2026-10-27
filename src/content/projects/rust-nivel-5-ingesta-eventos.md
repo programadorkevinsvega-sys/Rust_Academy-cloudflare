@@ -272,7 +272,10 @@ impl Metricas {
         self.procesados += 1;
         match &resultado.estado {
             Estado::Exito => self.exitos += 1,
-            Estado::Fallo(_) => self.errores += 1,
+            Estado::Fallo(mensaje) => {
+                self.errores += 1;
+                println!("Detalle del fallo: {mensaje}");
+            },
             Estado::Timeout => self.timeouts += 1,
         }
         println!("Evento #{} -> {:?}", resultado.evento_id, resultado.estado);
