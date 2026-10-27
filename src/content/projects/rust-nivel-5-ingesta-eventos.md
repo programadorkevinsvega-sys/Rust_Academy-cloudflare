@@ -585,3 +585,423 @@ cargo test
 
 La versión de hilos usa un canal estándar, un grupo fijo de trabajadores y espera sus handles. La versión async limita el trabajo con Semaphore y un canal acotado; select! aplica un timeout por evento, mientras que el plazo global permite abortar tareas pendientes. Las demoras y fallos son simulados; no se contacta ningún servicio real.
 
+
+---
+
+# Solución de referencia — código completo
+
+Esta versión de referencia incluye las dos partes del proyecto: primero un pool de trabajadores con threads y canales de la biblioteca estándar, y después una canalización async con Tokio. Son dos demostraciones dentro del mismo programa para comparar sus decisiones de diseño.
+
+Crea el proyecto:
+
+```bash
+cargo new ingesta_eventos
+cd ingesta_eventos
+```
+
+## Cargo.toml
+
+Reemplaza el contenido de Cargo.toml por:
+
+```toml
+[package]
+name = "ingesta_eventos"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
+```
+
+## src/main.rs
+
+```rust
+use std::fmt;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use tokio::sync::{mpsc as tokio_mpsc, watch, Mutex as AsyncMutex, Semaphore};
+use tokio::task::JoinSet;
+use tokio::time::{sleep, timeout};
+
+const NUM_TRABAJADORES: usize = 3;
+const CAPACIDAD_CANAL: usize = 3;
+const MAX_TAREAS_ASYNC: usize = 4;
+const TIMEOUT_EVENTO_MS: u64 = 250;
+
+#[derive(Debug, Clone, Copy)]
+enum TipoEvento {
+    PedidoCreado,
+    PagoConfirmado,
+    PaqueteDespachado,
+    PedidoEntregado,
+}
+
+impl fmt::Display for TipoEvento {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let texto = match self {
+            TipoEvento::PedidoCreado => "pedido_creado",
+            TipoEvento::PagoConfirmado => "pago_confirmado",
+            TipoEvento::PaqueteDespachado => "paquete_despachado",
+            TipoEvento::PedidoEntregado => "pedido_entregado",
+        };
+        write!(f, "{texto}")
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Evento {
+    id: u64,
+    pedido_id: u64,
+    tipo: TipoEvento,
+    demora_ms: u64,
+}
+
+#[derive(Debug, Default, Clone)]
+struct Metricas {
+    recibidos: usize,
+    procesados: usize,
+    errores_negocio: usize,
+    timeouts: usize,
+    cancelados_sin_lanzar: usize,
+    tareas_con_error: usize,
+    activos: usize,
+    max_activos: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Resultado {
+    Procesado,
+    ErrorNegocio,
+    Timeout,
+}
+
+impl fmt::Display for Resultado {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Resultado::Procesado => write!(f, "OK"),
+            Resultado::ErrorNegocio => write!(f, "ERROR_NEGOCIO"),
+            Resultado::Timeout => write!(f, "TIMEOUT"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Informe {
+    id: u64,
+    pedido_id: u64,
+    tipo: TipoEvento,
+    resultado: Resultado,
+}
+
+fn crear_eventos_demo() -> Vec<Evento> {
+    (1_u64..=18)
+        .map(|id| Evento {
+            id,
+            pedido_id: 10_000 + id,
+            tipo: match id % 4 {
+                0 => TipoEvento::PedidoEntregado,
+                1 => TipoEvento::PedidoCreado,
+                2 => TipoEvento::PagoConfirmado,
+                _ => TipoEvento::PaqueteDespachado,
+            },
+            // Los múltiplos de seis simulan un sistema remoto demasiado lento.
+            demora_ms: if id % 6 == 0 { 700 } else { 40 + (id % 3) * 25 },
+        })
+        .collect()
+}
+
+fn imprimir_metricas(nombre: &str, metricas: &Metricas) {
+    println!("\n=== MÉTRICAS: {nombre} ===");
+    println!("Recibidos:             {}", metricas.recibidos);
+    println!("Procesados correctamente: {}", metricas.procesados);
+    println!("Errores de negocio:    {}", metricas.errores_negocio);
+    println!("Timeouts:              {}", metricas.timeouts);
+    println!("No lanzados por cierre: {}", metricas.cancelados_sin_lanzar);
+    println!("Fallos de tareas:      {}", metricas.tareas_con_error);
+    println!("Máximo activo a la vez: {}", metricas.max_activos);
+}
+
+fn run_threads(eventos: Vec<Evento>) -> Metricas {
+    println!("\n########################################");
+    println!("FASE A: THREADS + CANALES ACOTADOS");
+    println!("########################################");
+
+    // Un canal acotado por trabajador: send() aplica contrapresión si su cola se llena.
+    let metricas = Arc::new(Mutex::new(Metricas::default()));
+    let mut emisores = Vec::new();
+    let mut manejadores = Vec::new();
+
+    for numero_trabajador in 0..NUM_TRABAJADORES {
+        let (tx, rx) = mpsc::sync_channel::<Evento>(CAPACIDAD_CANAL);
+        emisores.push(tx);
+
+        let metricas_trabajador = Arc::clone(&metricas);
+        let manejador = thread::spawn(move || {
+            while let Ok(evento) = rx.recv() {
+                {
+                    let mut m = metricas_trabajador
+                        .lock()
+                        .expect("el mutex de métricas no debe envenenarse");
+                    m.recibidos += 1;
+                    m.activos += 1;
+                    m.max_activos = m.max_activos.max(m.activos);
+                }
+
+                thread::sleep(Duration::from_millis(evento.demora_ms.min(100)));
+                let resultado = if evento.id % 7 == 0 {
+                    Resultado::ErrorNegocio
+                } else {
+                    Resultado::Procesado
+                };
+
+                {
+                    let mut m = metricas_trabajador
+                        .lock()
+                        .expect("el mutex de métricas no debe envenenarse");
+                    m.activos -= 1;
+                    match resultado {
+                        Resultado::Procesado => m.procesados += 1,
+                        Resultado::ErrorNegocio => m.errores_negocio += 1,
+                        Resultado::Timeout => m.timeouts += 1,
+                    }
+                }
+
+                println!(
+                    "[thread {numero_trabajador}] evento={} pedido={} tipo={} => {}",
+                    evento.id, evento.pedido_id, evento.tipo, resultado
+                );
+            }
+        });
+        manejadores.push(manejador);
+    }
+
+    // Distribuye eventos entre trabajadores. El envío puede bloquear si la cola está llena.
+    for (indice, evento) in eventos.into_iter().enumerate() {
+        let destino = indice % NUM_TRABAJADORES;
+        if emisores[destino].send(evento).is_err() {
+            eprintln!("El trabajador {destino} terminó antes de recibir el evento.");
+        }
+    }
+
+    // Al cerrar todos los emisores, recv() devuelve Err y los trabajadores salen del bucle.
+    drop(emisores);
+
+    for manejador in manejadores {
+        if manejador.join().is_err() {
+            eprintln!("Un trabajador terminó con panic.");
+            if let Ok(mut m) = metricas.lock() {
+                m.tareas_con_error += 1;
+            }
+        }
+    }
+
+    match Arc::try_unwrap(metricas) {
+        Ok(mutex) => mutex.into_inner().unwrap_or_default(),
+        Err(compartidas) => compartidas.lock().map(|m| m.clone()).unwrap_or_default(),
+    }
+}
+
+async fn procesar_evento_async(
+    evento: Evento,
+    metricas: Arc<AsyncMutex<Metricas>>,
+) -> Informe {
+    {
+        let mut m = metricas.lock().await;
+        m.recibidos += 1;
+        m.activos += 1;
+        m.max_activos = m.max_activos.max(m.activos);
+    }
+
+    let id = evento.id;
+    let pedido_id = evento.pedido_id;
+    let tipo = evento.tipo;
+    let demora = evento.demora_ms;
+
+    let resultado = match timeout(
+        Duration::from_millis(TIMEOUT_EVENTO_MS),
+        async move {
+            sleep(Duration::from_millis(demora)).await;
+        },
+    )
+    .await
+    {
+        Err(_) => Resultado::Timeout,
+        Ok(()) if id % 7 == 0 => Resultado::ErrorNegocio,
+        Ok(()) => Resultado::Procesado,
+    };
+
+    {
+        let mut m = metricas.lock().await;
+        m.activos -= 1;
+        match resultado {
+            Resultado::Procesado => m.procesados += 1,
+            Resultado::ErrorNegocio => m.errores_negocio += 1,
+            Resultado::Timeout => m.timeouts += 1,
+        }
+    }
+
+    Informe { id, pedido_id, tipo, resultado }
+}
+
+async fn run_async(
+    eventos: Vec<Evento>,
+    mut cancelacion: watch::Receiver<bool>,
+) -> Metricas {
+    println!("\n########################################");
+    println!("FASE B: TOKIO + ASYNC/AWAIT");
+    println!("########################################");
+
+    let total_eventos = eventos.len();
+    let semaforo = Arc::new(Semaphore::new(MAX_TAREAS_ASYNC));
+    let metricas = Arc::new(AsyncMutex::new(Metricas::default()));
+    let (tx, mut rx) = tokio_mpsc::channel::<Informe>(CAPACIDAD_CANAL);
+
+    // El recolector drena la cola mientras las tareas producen informes.
+    // Si el recolector se ralentiza, la cola acotada hace que send().await espere.
+    let recolector = tokio::spawn(async move {
+        let mut cantidad = 0_usize;
+        while let Some(informe) = rx.recv().await {
+            println!(
+                "[async] evento={} pedido={} tipo={} => {}",
+                informe.id, informe.pedido_id, informe.tipo, informe.resultado
+            );
+            cantidad += 1;
+        }
+        cantidad
+    });
+
+    let mut tareas = JoinSet::new();
+    let mut no_lanzados = 0_usize;
+
+    for (indice, evento) in eventos.into_iter().enumerate() {
+        if *cancelacion.borrow() {
+            no_lanzados = total_eventos - indice;
+            break;
+        }
+
+        // La espera del permiso también responde a la cancelación.
+        let permiso = tokio::select! {
+            resultado = cancelacion.changed() => {
+                if resultado.is_ok() && *cancelacion.borrow() {
+                    no_lanzados = total_eventos - indice;
+                    break;
+                }
+                continue;
+            }
+            permiso = Arc::clone(&semaforo).acquire_owned() => {
+                match permiso {
+                    Ok(permiso) => permiso,
+                    Err(_) => {
+                        no_lanzados = total_eventos - indice;
+                        break;
+                    }
+                }
+            }
+        };
+
+        let tx_tarea = tx.clone();
+        let metricas_tarea = Arc::clone(&metricas);
+
+        tareas.spawn(async move {
+            let informe = procesar_evento_async(evento, metricas_tarea).await;
+            if tx_tarea.send(informe).await.is_err() {
+                eprintln!("El recolector cerró el canal antes de recibir un informe.");
+            }
+            drop(permiso);
+        });
+    }
+
+    drop(tx); // El recolector termina cuando todas las tareas sueltan sus emisores.
+
+    while let Some(resultado) = tareas.join_next().await {
+        if resultado.is_err() {
+            let mut m = metricas.lock().await;
+            m.tareas_con_error += 1;
+        }
+    }
+
+    let _informes_recibidos = recolector.await.unwrap_or_default();
+
+    {
+        let mut m = metricas.lock().await;
+        m.cancelados_sin_lanzar += no_lanzados;
+    }
+
+    match Arc::try_unwrap(metricas) {
+        Ok(mutex) => mutex.into_inner(),
+        Err(compartidas) => compartidas.lock().await.clone(),
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let inicio_threads = Instant::now();
+    let metricas_threads = run_threads(crear_eventos_demo());
+    imprimir_metricas("threads", &metricas_threads);
+    println!("Duración de la fase threads: {:?}", inicio_threads.elapsed());
+
+    println!(
+        "\nLa siguiente fase admite Ctrl+C. Si se solicita el cierre, deja de lanzar eventos nuevos y espera los que ya están en curso."
+    );
+
+    let (cancelar_tx, cancelar_rx) = watch::channel(false);
+    let listener_ctrl_c = tokio::spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            let _ = cancelar_tx.send(true);
+            println!("Señal de cierre recibida: iniciando apagado ordenado.");
+        }
+    });
+
+    let inicio_async = Instant::now();
+    let metricas_async = run_async(crear_eventos_demo(), cancelar_rx).await;
+    listener_ctrl_c.abort();
+
+    imprimir_metricas("Tokio", &metricas_async);
+    println!("Duración de la fase Tokio: {:?}", inicio_async.elapsed());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn el_lote_tiene_dieciocho_eventos() {
+        assert_eq!(crear_eventos_demo().len(), 18);
+    }
+
+    #[tokio::test]
+    async fn un_evento_lento_se_marca_como_timeout() {
+        let evento = Evento {
+            id: 6,
+            pedido_id: 10_006,
+            tipo: TipoEvento::PagoConfirmado,
+            demora_ms: 700,
+        };
+        let metricas = Arc::new(AsyncMutex::new(Metricas::default()));
+        let informe = procesar_evento_async(evento, metricas).await;
+        assert_eq!(informe.resultado, Resultado::Timeout);
+    }
+}
+```
+
+## Ejecutar y probar
+
+```bash
+cargo fmt
+cargo check
+cargo test
+cargo run
+```
+
+## Qué deberías observar
+
+- La fase de threads reparte eventos entre tres trabajadores y usa canales acotados para aplicar contrapresión.
+- La fase Tokio limita el número de tareas simultáneas mediante un Semaphore y la capacidad de la cola de informes es finita.
+- Los eventos lentos terminan como TIMEOUT; algunos IDs producen un error de negocio simulado.
+- Al solicitar Ctrl+C durante la fase async, el programa deja de lanzar tareas nuevas y espera que las ya lanzadas terminen antes de mostrar las métricas finales.
+- Las métricas permiten comparar eventos recibidos, procesados, con error, expirados y máximo de tareas activas.
+
+El proyecto es una simulación autocontenida: no descarga información real ni necesita conexión a una plataforma de comercio electrónico.
+
