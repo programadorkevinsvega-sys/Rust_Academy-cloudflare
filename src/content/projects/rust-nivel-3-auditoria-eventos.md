@@ -142,242 +142,47 @@ No implementes todavía autenticación, conexión a una plataforma SIEM ni persi
 
 # Solución de referencia completa
 
-Crea auditoria_eventos. Si se proporciona la ruta de un archivo como argumento, el programa lee ese archivo; si no, procesa los datos demostrativos incluidos.
+La implementación ejecutable está separada en capas. No concentres las reglas del negocio en `src/main.rs`: el punto de entrada solo declara los módulos y llama al controlador.
 
-~~~text
-auditoria_eventos/
+## Arquitectura requerida
+
+```text
+rust-nivel-3-auditoria-eventos/
 ├── Cargo.toml
-├── data/
-│   └── eventos_demo.log
 └── src/
     ├── main.rs
-    ├── evento.rs
-    ├── parser.rs
-    └── reporte.rs
-~~~
+    ├── modelo/
+    │   └── mod.rs
+    ├── vista/
+    │   └── mod.rs
+    ├── controlador/
+    │   └── mod.rs
+    └── service/
+        └── mod.rs
+```
 
-## Cargo.toml
+- **Modelo:** define la estructura de un evento de auditoría y los campos que deben estar presentes.
+- **Service:** analiza las líneas, valida los campos, clasifica los eventos y calcula estadísticas de fallos.
+- **Controlador:** obtiene la entrada de demostración o el archivo indicado y coordina el análisis.
+- **Vista:** presenta el resumen de eventos y las incidencias detectadas.
+- **main.rs:** declara las capas y ejecuta el controlador.
 
-~~~toml
-[package]
-name = "auditoria_eventos"
-version = "0.1.0"
-edition = "2021"
+## Código fuente por archivo
 
-[dependencies]
-~~~
+- [Cargo.toml](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-3-auditoria-eventos/Cargo.toml)
+- [src/main.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-3-auditoria-eventos/src/main.rs)
+- [Modelo: src/modelo/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-3-auditoria-eventos/src/modelo/mod.rs)
+- [Service: src/service/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-3-auditoria-eventos/src/service/mod.rs)
+- [Vista: src/vista/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-3-auditoria-eventos/src/vista/mod.rs)
+- [Controlador: src/controlador/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-3-auditoria-eventos/src/controlador/mod.rs)
 
-## src/evento.rs
+## Ejecutar y probar
 
-~~~rust
-#[derive(Debug)]
-pub struct Evento<'a> {
-    pub numero_linea: usize,
-    pub timestamp: &'a str,
-    pub usuario: &'a str,
-    pub accion: &'a str,
-    pub recurso: &'a str,
-    pub resultado: &'a str,
-}
-~~~
+Desde la raíz del repositorio:
 
-## src/parser.rs
+```bash
+cargo run --manifest-path proyectos/rust-nivel-3-auditoria-eventos/Cargo.toml
+cargo test --manifest-path proyectos/rust-nivel-3-auditoria-eventos/Cargo.toml
+```
 
-~~~rust
-use crate::evento::Evento;
-
-pub fn normalizar(texto: &mut String) {
-    // Se llama antes de crear referencias al buffer.
-    *texto = texto.to_lowercase();
-}
-
-pub fn parsear_linea<'a>(
-    linea: &'a str,
-    numero_linea: usize,
-) -> Result<Evento<'a>, &'static str> {
-    let campos: Vec<&str> = linea.split('|').map(str::trim).collect();
-
-    if campos.len() != 5 {
-        return Err("se esperaban cinco campos separados por |");
-    }
-    if campos.iter().any(|campo| campo.is_empty()) {
-        return Err("hay uno o mas campos vacios");
-    }
-
-    let resultado = campos[4];
-    if resultado != "ok" && resultado != "denied" && resultado != "blocked" {
-        return Err("resultado desconocido; use ok, denied o blocked");
-    }
-
-    Ok(Evento {
-        numero_linea,
-        timestamp: campos[0],
-        usuario: campos[1],
-        accion: campos[2],
-        recurso: campos[3],
-        resultado,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn analiza_evento_valido() {
-        let texto = String::from("2026-10-27t08:10:02z|usuario_17|login|portal|ok");
-        let evento = parsear_linea(&texto, 1).unwrap();
-        assert_eq!(evento.usuario, "usuario_17");
-        assert_eq!(evento.resultado, "ok");
-    }
-
-    #[test]
-    fn rechaza_una_linea_incompleta() {
-        assert!(parsear_linea("fecha|usuario|login", 3).is_err());
-    }
-}
-~~~
-
-## src/reporte.rs
-
-~~~rust
-use std::collections::HashMap;
-
-use crate::evento::Evento;
-
-pub fn imprimir(eventos: &[Evento<'_>]) {
-    println!("=== INFORME DE AUDITORIA ===");
-    println!("Eventos validos: {}", eventos.len());
-
-    let denegados = eventos.iter()
-        .filter(|evento| evento.resultado == "denied")
-        .count();
-    let cambios_rol = eventos.iter()
-        .filter(|evento| evento.accion == "change_role")
-        .count();
-
-    println!("Accesos denegados: {denegados}");
-    println!("Cambios de rol: {cambios_rol}");
-
-    println!("\nEventos que requieren revision:");
-    for evento in eventos {
-        if evento.resultado == "denied"
-            || evento.resultado == "blocked"
-            || evento.accion == "change_role"
-        {
-            println!(
-                "linea {} | {} | usuario={} | accion={} | recurso={} | resultado={}",
-                evento.numero_linea, evento.timestamp, evento.usuario,
-                evento.accion, evento.recurso, evento.resultado
-            );
-        }
-    }
-
-    let mut fallos_por_usuario: HashMap<&str, usize> = HashMap::new();
-    for evento in eventos.iter().filter(|evento| evento.resultado == "denied") {
-        *fallos_por_usuario.entry(evento.usuario).or_insert(0) += 1;
-    }
-
-    let mut alertas: Vec<(&str, usize)> = fallos_por_usuario.into_iter()
-        .filter(|(_, cantidad)| *cantidad >= 3)
-        .collect();
-    alertas.sort_by(|a, b| a.0.cmp(b.0));
-
-    println!("\nAlertas por multiples fallos (tres o mas):");
-    if alertas.is_empty() {
-        println!("No se encontraron usuarios sobre el umbral.");
-    } else {
-        for (usuario, cantidad) in alertas {
-            println!("ALERTA: {usuario} acumula {cantidad} accesos denegados");
-        }
-    }
-}
-~~~
-
-## src/main.rs
-
-~~~rust
-mod evento;
-mod parser;
-mod reporte;
-
-use std::{env, error::Error, fs};
-
-use parser::{normalizar, parsear_linea};
-
-const DATOS_DEMO: &str = "\
-2026-10-27T08:10:02Z|usuario_17|LOGIN|portal|OK
-2026-10-27T08:11:14Z|usuario_17|LOGIN|portal|DENIED
-2026-10-27T08:11:42Z|usuario_17|RESET_PASSWORD|portal|DENIED
-2026-10-27T08:12:02Z|usuario_17|LOGIN|portal|DENIED
-2026-10-27T08:14:03Z|admin_2|CHANGE_ROLE|usuario_17|OK
-2026-10-27T08:15:03Z|usuario_22|LOGIN|portal|OK
-linea malformada
-2026-10-27T08:17:03Z|usuario_23|LOGIN|portal|BLOCKED";
-
-fn main() -> Result<(), Box<dyn Error>> {
-    let argumento = env::args().nth(1);
-    let mut texto = match argumento {
-        Some(ruta) => fs::read_to_string(ruta)?,
-        None => DATOS_DEMO.to_string(),
-    };
-
-    normalizar(&mut texto);
-
-    {
-        // Los eventos guardan referencias a segmentos de texto, no Strings propios.
-        // El buffer original debe vivir e permanecer inmutable durante este bloque.
-        let mut eventos = Vec::new();
-        let mut lineas_invalidas = 0_usize;
-
-        for (indice, linea) in texto.lines().enumerate() {
-            if linea.trim().is_empty() {
-                continue;
-            }
-
-            match parsear_linea(linea, indice + 1) {
-                Ok(evento) => eventos.push(evento),
-                Err(error) => {
-                    lineas_invalidas += 1;
-                    eprintln!("Linea {} ignorada: {}", indice + 1, error);
-                }
-            }
-        }
-
-        println!("Lineas invalidas: {lineas_invalidas}\n");
-        reporte::imprimir(&eventos);
-    } // Los préstamos terminan al salir del bloque.
-
-    // Una vez terminados los préstamos, se puede modificar el String dueño.
-    texto.push_str("\n# buffer reutilizado tras el analisis");
-    println!("\nBuffer dueño disponible: {} bytes", texto.len());
-
-    Ok(())
-}
-~~~
-
-## data/eventos_demo.log
-
-~~~text
-2026-10-27T08:10:02Z|usuario_17|LOGIN|portal|OK
-2026-10-27T08:11:14Z|usuario_17|LOGIN|portal|DENIED
-2026-10-27T08:11:42Z|usuario_17|RESET_PASSWORD|portal|DENIED
-2026-10-27T08:12:02Z|usuario_17|LOGIN|portal|DENIED
-2026-10-27T08:14:03Z|admin_2|CHANGE_ROLE|usuario_17|OK
-2026-10-27T08:15:03Z|usuario_22|LOGIN|portal|OK
-linea malformada
-2026-10-27T08:17:03Z|usuario_23|LOGIN|portal|BLOCKED
-~~~
-
-## Ejecutarlo
-
-~~~bash
-cargo run
-cargo run -- data/eventos_demo.log
-cargo test
-~~~
-
-La solución utiliza referencias y slices para los campos del evento. Los valores de Evento solo pueden existir mientras viva el String que contiene el texto. Los registros y las alertas son demostrativos, no son un sistema de seguridad de producción.
-
-
----
+Los registros incluidos son de demostración. En producción, los eventos deben proceder de una fuente controlada y conservarse de forma íntegra; el parser debe informar las líneas inválidas sin ocultar errores.
