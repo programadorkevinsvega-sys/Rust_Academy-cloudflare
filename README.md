@@ -7,7 +7,8 @@ Plataforma educativa estática y extensible para aprender lenguajes de programac
 - Sin backend ni base de datos: no hay API propia, autenticación ni servicios de servidor.
 - Progreso local: los cursos completados se guardan en localStorage del navegador.
 - Multilenguaje: el catálogo vive en src/data/languages.ts; cada curso es Markdown con metadatos.
-- Los cinco niveles de Rust están incorporados como contenido Markdown; se conservan los archivos originales de los cursos en la raíz del repositorio.
+- Los cinco niveles de Rust están incorporados como Markdown en `src/content/courses/`.
+- Cada nivel tiene un proyecto empresarial independiente en `src/content/projects/`, con una página estática propia y un enlace desde su curso.
 
 ## Ejecutar localmente
 Requisitos: Node.js 22 recomendado, npm y Git.
@@ -69,11 +70,13 @@ La portada, las tarjetas, la búsqueda y las rutas se generan automáticamente a
 ```
 src/
 ├── content/courses/       # Cursos Markdown por lenguaje y nivel
+├── content/projects/      # Enunciados independientes de proyectos empresariales
 ├── data/languages.ts      # Catálogo de lenguajes
 ├── layouts/BaseLayout.astro
 ├── pages/index.astro
 ├── pages/404.astro
 ├── pages/cursos/[slug].astro
+├── pages/proyectos/[slug].astro
 └── styles/global.css
 public/
 ├── favicon.svg
