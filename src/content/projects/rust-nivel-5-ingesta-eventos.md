@@ -165,3 +165,423 @@ Usa la dependencia Tokio con las features necesarias para runtime, macros, sincr
 ## Fuera de alcance
 
 No conectes todavía una cola de producción, una base de datos ni servicios de logística reales. El objetivo es validar la arquitectura de concurrencia y las garantías operativas con cargas simuladas y resultados reproducibles.
+
+
+---
+
+# Solución de referencia completa
+
+Esta solución entrega dos implementaciones para la misma carga simulada: una con hilos de la biblioteca estándar y otra con Tokio. Ambas cuentan éxitos, fallos y timeouts. La versión Tokio utiliza un canal acotado, un semáforo, tareas agrupadas y cancelación por plazo total.
+
+Crea el proyecto ingesta_eventos con esta estructura:
+
+~~~text
+ingesta_eventos/
+├── Cargo.toml
+└── src/
+    ├── main.rs
+    ├── evento.rs
+    ├── common.rs
+    ├── threading.rs
+    └── async_pipeline.rs
+~~~
+
+## Cargo.toml
+
+~~~toml
+[package]
+name = "ingesta_eventos"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+~~~
+
+## src/evento.rs
+
+~~~rust
+#[derive(Debug, Clone)]
+pub enum TipoEvento {
+    PedidoCreado,
+    PagoConfirmado,
+    PaqueteDespachado,
+    EntregaFallida,
+    PedidoEntregado,
+}
+
+#[derive(Debug, Clone)]
+pub struct Evento {
+    pub id: u32,
+    pub pedido_id: u32,
+    pub tipo: TipoEvento,
+    pub fuente: &'static str,
+    pub demora_ms: u64,
+}
+
+pub fn datos_demo() -> Vec<Evento> {
+    use TipoEvento::*;
+
+    vec![
+        Evento { id: 1, pedido_id: 9001, tipo: PedidoCreado, fuente: "tienda-medellin", demora_ms: 40 },
+        Evento { id: 2, pedido_id: 9002, tipo: PagoConfirmado, fuente: "pasarela-pagos", demora_ms: 75 },
+        Evento { id: 3, pedido_id: 9003, tipo: PaqueteDespachado, fuente: "operador-logistico", demora_ms: 250 },
+        Evento { id: 4, pedido_id: 9004, tipo: EntregaFallida, fuente: "operador-logistico", demora_ms: 60 },
+        Evento { id: 5, pedido_id: 9005, tipo: PedidoEntregado, fuente: "tienda-bogota", demora_ms: 90 },
+        Evento { id: 6, pedido_id: 9006, tipo: PagoConfirmado, fuente: "pasarela-pagos", demora_ms: 220 },
+        Evento { id: 7, pedido_id: 9007, tipo: PedidoCreado, fuente: "tienda-cali", demora_ms: 55 },
+        Evento { id: 8, pedido_id: 9008, tipo: PaqueteDespachado, fuente: "operador-logistico", demora_ms: 80 },
+        Evento { id: 9, pedido_id: 9009, tipo: PedidoEntregado, fuente: "tienda-medellin", demora_ms: 240 },
+        Evento { id: 10, pedido_id: 9010, tipo: PagoConfirmado, fuente: "pasarela-pagos", demora_ms: 100 },
+    ]
+}
+~~~
+
+## src/common.rs
+
+~~~rust
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+#[derive(Debug)]
+pub enum Estado {
+    Exito,
+    Fallo(String),
+    Timeout,
+}
+
+#[derive(Debug)]
+pub struct Resultado {
+    pub evento_id: u32,
+    pub estado: Estado,
+}
+
+#[derive(Debug, Default)]
+pub struct Metricas {
+    pub procesados: usize,
+    pub exitos: usize,
+    pub errores: usize,
+    pub timeouts: usize,
+    pub max_concurrencia: usize,
+}
+
+impl Metricas {
+    pub fn registrar(&mut self, resultado: &Resultado) {
+        self.procesados += 1;
+        match &resultado.estado {
+            Estado::Exito => self.exitos += 1,
+            Estado::Fallo(_) => self.errores += 1,
+            Estado::Timeout => self.timeouts += 1,
+        }
+        println!("Evento #{} -> {:?}", resultado.evento_id, resultado.estado);
+    }
+
+    pub fn imprimir(&self, titulo: &str) {
+        println!("\n=== {titulo} ===");
+        println!("Eventos finalizados: {}", self.procesados);
+        println!("Exitos: {}", self.exitos);
+        println!("Errores de procesamiento: {}", self.errores);
+        println!("Timeouts: {}", self.timeouts);
+        println!("Maximo de trabajos simultaneos observado: {}", self.max_concurrencia);
+    }
+}
+
+// Este guardia reduce el contador aunque un hilo termine o una tarea async se cancele.
+pub struct GuardiaActiva {
+    contador: Arc<AtomicUsize>,
+}
+
+impl GuardiaActiva {
+    pub fn entrar(
+        contador: Arc<AtomicUsize>,
+        maximo: Arc<AtomicUsize>,
+    ) -> Self {
+        let actual = contador.fetch_add(1, Ordering::SeqCst) + 1;
+        maximo.fetch_max(actual, Ordering::SeqCst);
+        Self { contador }
+    }
+}
+
+impl Drop for GuardiaActiva {
+    fn drop(&mut self) {
+        self.contador.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registra_los_tres_resultados() {
+        let mut metricas = Metricas::default();
+        metricas.registrar(&Resultado { evento_id: 1, estado: Estado::Exito });
+        metricas.registrar(&Resultado {
+            evento_id: 2,
+            estado: Estado::Fallo("evento no valido".to_string()),
+        });
+        metricas.registrar(&Resultado { evento_id: 3, estado: Estado::Timeout });
+
+        assert_eq!(metricas.procesados, 3);
+        assert_eq!(metricas.exitos, 1);
+        assert_eq!(metricas.errores, 1);
+        assert_eq!(metricas.timeouts, 1);
+    }
+}
+~~~
+
+## src/threading.rs
+
+~~~rust
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::AtomicUsize,
+        mpsc,
+    },
+    thread,
+    time::Duration,
+};
+
+use crate::{
+    common::{Estado, GuardiaActiva, Metricas, Resultado},
+    evento::Evento,
+};
+
+fn procesar(evento: Evento) -> Resultado {
+    println!(
+        "[thread] pedido={} tipo={:?} fuente={}",
+        evento.pedido_id, evento.tipo, evento.fuente
+    );
+    thread::sleep(Duration::from_millis(evento.demora_ms));
+
+    let estado = if evento.id % 7 == 0 {
+        Estado::Fallo("fallo simulado de validacion".to_string())
+    } else {
+        Estado::Exito
+    };
+
+    Resultado { evento_id: evento.id, estado }
+}
+
+pub fn ejecutar(eventos: &[Evento]) -> Result<(), String> {
+    const TRABAJADORES: usize = 3;
+
+    let (tx, rx) = mpsc::channel::<Evento>();
+    let receptor = Arc::new(Mutex::new(rx));
+    let metricas = Arc::new(Mutex::new(Metricas::default()));
+    let activos = Arc::new(AtomicUsize::new(0));
+    let maximos = Arc::new(AtomicUsize::new(0));
+    let mut handles = Vec::new();
+
+    for numero in 0..TRABAJADORES {
+        let receptor = Arc::clone(&receptor);
+        let metricas = Arc::clone(&metricas);
+        let activos = Arc::clone(&activos);
+        let maximos = Arc::clone(&maximos);
+
+        let handle = thread::Builder::new()
+            .name(format!("worker-{numero}"))
+            .spawn(move || {
+                loop {
+                    // El lock se mantiene solo mientras se recibe el siguiente mensaje.
+                    let recibido = {
+                        let rx = receptor.lock().unwrap_or_else(|p| p.into_inner());
+                        rx.recv()
+                    };
+
+                    let evento = match recibido {
+                        Ok(evento) => evento,
+                        Err(_) => break,
+                    };
+
+                    let _guardia = GuardiaActiva::entrar(
+                        Arc::clone(&activos),
+                        Arc::clone(&maximos),
+                    );
+                    let resultado = procesar(evento);
+
+                    let mut datos = metricas.lock().unwrap_or_else(|p| p.into_inner());
+                    datos.registrar(&resultado);
+                }
+            })
+            .map_err(|error| format!("no se pudo crear un trabajador: {error}"))?;
+
+        handles.push(handle);
+    }
+
+    for evento in eventos {
+        tx.send(evento.clone())
+            .map_err(|error| format!("no se pudo enviar el evento: {error}"))?;
+    }
+    // Al cerrar el canal, cada worker sale de recv y puede finalizar.
+    drop(tx);
+
+    for handle in handles {
+        if handle.join().is_err() {
+            eprintln!("Un trabajador terminó por panic.");
+        }
+    }
+
+    let mut resumen = metricas.lock().unwrap_or_else(|p| p.into_inner());
+    resumen.max_concurrencia = maximos.load(std::sync::atomic::Ordering::SeqCst);
+    resumen.imprimir("Procesamiento con std::thread");
+    Ok(())
+}
+~~~
+
+## src/async_pipeline.rs
+
+~~~rust
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
+
+use tokio::{
+    sync::{mpsc, Semaphore},
+    task::JoinSet,
+    time::{sleep, timeout},
+};
+
+use crate::{
+    common::{Estado, GuardiaActiva, Metricas, Resultado},
+    evento::Evento,
+};
+
+async fn procesar(evento: Evento) -> Resultado {
+    println!(
+        "[async] pedido={} tipo={:?} fuente={}",
+        evento.pedido_id, evento.tipo, evento.fuente
+    );
+    sleep(Duration::from_millis(evento.demora_ms)).await;
+
+    let estado = if evento.id % 7 == 0 {
+        Estado::Fallo("fallo simulado de validacion".to_string())
+    } else {
+        Estado::Exito
+    };
+
+    Resultado { evento_id: evento.id, estado }
+}
+
+pub async fn ejecutar(eventos: Vec<Evento>) -> Result<(), String> {
+    const LIMITE_CONCURRENCIA: usize = 3;
+    const CAPACIDAD_CANAL: usize = 2;
+    const TIMEOUT_POR_EVENTO: Duration = Duration::from_millis(180);
+    const PLAZO_TOTAL: Duration = Duration::from_secs(3);
+
+    let (tx, mut rx) = mpsc::channel::<Resultado>(CAPACIDAD_CANAL);
+
+    // Un consumidor recoge resultados y simula que el sistema de monitoreo es más lento.
+    let recolector = tokio::spawn(async move {
+        let mut metricas = Metricas::default();
+        while let Some(resultado) = rx.recv().await {
+            metricas.registrar(&resultado);
+            sleep(Duration::from_millis(15)).await;
+        }
+        metricas
+    });
+
+    let semaforo = Arc::new(Semaphore::new(LIMITE_CONCURRENCIA));
+    let activos = Arc::new(AtomicUsize::new(0));
+    let maximos = Arc::new(AtomicUsize::new(0));
+    let mut tareas = JoinSet::new();
+
+    for evento in eventos {
+        // Si se alcanzó el límite, el productor espera hasta que se libere un permiso.
+        let permiso = Arc::clone(&semaforo)
+            .acquire_owned()
+            .await
+            .map_err(|error| format!("semaforo cerrado inesperadamente: {error}"))?;
+        let tx_evento = tx.clone();
+        let activos_tarea = Arc::clone(&activos);
+        let maximos_tarea = Arc::clone(&maximos);
+
+        tareas.spawn(async move {
+            let _permiso = permiso;
+            let _guardia = GuardiaActiva::entrar(activos_tarea, maximos_tarea);
+            let id = evento.id;
+
+            // select! cancela el futuro de procesamiento si vence el plazo de este evento.
+            let resultado = tokio::select! {
+                resultado = procesar(evento) => resultado,
+                _ = sleep(TIMEOUT_POR_EVENTO) => Resultado {
+                    evento_id: id,
+                    estado: Estado::Timeout,
+                },
+            };
+
+            // Al estar lleno el canal, send().await espera: esto aplica backpressure.
+            if tx_evento.send(resultado).await.is_err() {
+                eprintln!("El recolector terminó antes de recibir el resultado.");
+            }
+        });
+    }
+
+    drop(tx); // Cuando todas las tareas cierren su emisor, el canal termina.
+
+    let espera_tareas = async {
+        while let Some(resultado) = tareas.join_next().await {
+            if let Err(error) = resultado {
+                eprintln!("Una tarea falló al unirse: {error}");
+            }
+        }
+    };
+
+    if timeout(PLAZO_TOTAL, espera_tareas).await.is_err() {
+        println!("Plazo total agotado: se cancelan las tareas pendientes.");
+        tareas.abort_all();
+        while tareas.join_next().await.is_some() {}
+    }
+
+    let mut metricas = recolector
+        .await
+        .map_err(|error| format!("falló el recolector: {error}"))?;
+    metricas.max_concurrencia = maximos.load(Ordering::SeqCst);
+    metricas.imprimir("Procesamiento async con Tokio");
+    Ok(())
+}
+~~~
+
+## src/main.rs
+
+~~~rust
+mod async_pipeline;
+mod common;
+mod evento;
+mod threading;
+
+#[tokio::main]
+async fn main() {
+    let eventos = evento::datos_demo();
+
+    println!("Eventos de entrada: {}", eventos.len());
+    if let Err(error) = threading::ejecutar(&eventos) {
+        eprintln!("Fallo en la versión con hilos: {error}");
+    }
+
+    println!("\n==============================================");
+    println!("Comienza la versión asíncrona");
+    println!("==============================================");
+
+    if let Err(error) = async_pipeline::ejecutar(eventos).await {
+        eprintln!("Fallo en la versión async: {error}");
+    }
+}
+~~~
+
+## Ejecutarlo
+
+~~~bash
+cargo run
+cargo test
+~~~
+
+La versión de hilos usa un canal estándar, un grupo fijo de trabajadores y espera sus handles. La versión async limita el trabajo con Semaphore y un canal acotado; select! aplica un timeout por evento, mientras que el plazo global permite abortar tareas pendientes. Las demoras y fallos son simulados; no se contacta ningún servicio real.
+
