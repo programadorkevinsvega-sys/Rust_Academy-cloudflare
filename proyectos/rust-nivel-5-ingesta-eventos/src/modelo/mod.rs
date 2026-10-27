@@ -55,9 +55,18 @@ impl Metricas {
     pub fn registrar(&mut self, resultado: &Resultado) {
         self.eventos_procesados += 1;
         match &resultado.estado {
-            Estado::Exito => self.exitos += 1,
-            Estado::Fallo(_) => self.fallos += 1,
-            Estado::Timeout => self.timeouts += 1,
+            Estado::Exito => {
+                self.exitos += 1;
+                println!("Evento {} procesado correctamente", resultado.evento_id);
+            }
+            Estado::Fallo(motivo) => {
+                self.fallos += 1;
+                eprintln!("Evento {} rechazado: {}", resultado.evento_id, motivo);
+            }
+            Estado::Timeout => {
+                self.timeouts += 1;
+                eprintln!("Evento {} supero el timeout configurado", resultado.evento_id);
+            }
         }
     }
 }
