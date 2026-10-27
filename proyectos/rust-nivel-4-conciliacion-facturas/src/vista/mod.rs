@@ -7,8 +7,13 @@ pub fn imprimir_resultados(facturas: &[Factura], errores: &[ErrorProceso]) {
     println!("Total conciliado: {total} COP");
     for factura in facturas {
         println!(
-            "OK {} | proveedor={} | orden={} | total={} COP",
-            factura.factura_id, factura.proveedor_id, factura.orden_id, factura.total_cop
+            "OK {} | proveedor={} | orden={} | subtotal={} COP | impuesto={} COP | total={} COP",
+            factura.factura_id,
+            factura.proveedor_id,
+            factura.orden_id,
+            factura.subtotal_cop,
+            factura.impuesto_cop,
+            factura.total_cop
         );
     }
     println!("\nIncidencias para corregir: {}", errores.len());
