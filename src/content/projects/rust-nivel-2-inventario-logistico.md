@@ -167,7 +167,7 @@ pub enum Categoria {
     Bebida,
     Comida,
     Aseo,
-    Otro,
+    Tecnologia,
 }
 
 impl fmt::Display for Categoria {
@@ -176,7 +176,7 @@ impl fmt::Display for Categoria {
             Categoria::Bebida => "Bebida",
             Categoria::Comida => "Comida",
             Categoria::Aseo => "Aseo",
-            Categoria::Otro => "Otro",
+            Categoria::Tecnologia => "Tecnologia",
         };
         write!(f, "{texto}")
     }
