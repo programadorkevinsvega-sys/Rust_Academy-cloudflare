@@ -43,6 +43,10 @@ pub async fn ejecutar(eventos: Vec<Evento>) -> Result<Metricas, String> {
                 let recibido = { receptor.lock().await.recv().await };
                 let Some(evento) = recibido else { break };
 
+                println!(
+                    "[async] pedido={} tipo={} fuente={}",
+                    evento.pedido_id, evento.tipo, evento.fuente
+                );
                 let permiso = match Arc::clone(&semaforo).acquire_owned().await {
                     Ok(permiso) => permiso,
                     Err(_) => break,
@@ -78,7 +82,6 @@ pub async fn ejecutar(eventos: Vec<Evento>) -> Result<Metricas, String> {
         });
     }
 
-    // La cola tiene capacidad 2: send().await espera cuando los consumidores no dan abasto.
     for evento in eventos {
         if tx.send(evento).await.is_err() {
             return Err("todos los trabajadores cerraron el canal".into());
