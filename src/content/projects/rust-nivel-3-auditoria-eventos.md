@@ -369,3 +369,218 @@ cargo test
 
 La solución utiliza referencias y slices para los campos del evento. Los valores de Evento solo pueden existir mientras viva el String que contiene el texto. Los registros y las alertas son demostrativos, no son un sistema de seguridad de producción.
 
+
+---
+
+# Solución de referencia — código completo
+
+Esta versión lee registros de un archivo, analiza sus campos como slices prestados y construye un resumen sin copiar cada campo a un String. Crea el proyecto:
+
+```bash
+cargo new auditoria_eventos
+cd auditoria_eventos
+mkdir data
+```
+
+Estructura:
+
+```text
+auditoria_eventos/
+├── Cargo.toml
+├── data/
+│   └── eventos_demo.log
+└── src/
+    └── main.rs
+```
+
+## Cargo.toml
+
+```toml
+[package]
+name = "auditoria_eventos"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+```
+
+## data/eventos_demo.log
+
+```text
+fecha|usuario|evento|recurso|resultado
+2026-10-27T08:10:02Z|usuario_17|LOGIN|portal|OK
+2026-10-27T08:11:14Z|usuario_17|LOGIN|portal|DENIED
+2026-10-27T08:11:42Z|usuario_17|RESET_PASSWORD|portal|DENIED
+2026-10-27T08:12:05Z|usuario_17|LOGIN|portal|DENIED
+2026-10-27T08:14:03Z|admin_2|CHANGE_ROLE|usuario_17|OK
+2026-10-27T08:20:00Z|usuario_21|LOGIN|portal|OK
+linea-malformada|faltan-campos
+```
+
+## src/main.rs
+
+```rust
+use std::collections::HashMap;
+use std::fs;
+
+#[derive(Debug)]
+struct Evento<'a> {
+    fecha: &'a str,
+    usuario: &'a str,
+    tipo: &'a str,
+    recurso: &'a str,
+    resultado: &'a str,
+}
+
+fn parsear_linea(linea: &str) -> Result<Evento<'_>, &'static str> {
+    let mut partes = linea.split('|');
+
+    let fecha = partes.next().ok_or("Falta la fecha")?.trim();
+    let usuario = partes.next().ok_or("Falta el usuario")?.trim();
+    let tipo = partes.next().ok_or("Falta el tipo de evento")?.trim();
+    let recurso = partes.next().ok_or("Falta el recurso")?.trim();
+    let resultado = partes.next().ok_or("Falta el resultado")?.trim();
+
+    if partes.next().is_some() {
+        return Err("La línea tiene más de cinco campos");
+    }
+    if [fecha, usuario, tipo, recurso, resultado].iter().any(|campo| campo.is_empty()) {
+        return Err("Los campos no pueden estar vacíos");
+    }
+
+    match resultado {
+        "OK" | "DENIED" => {}
+        _ => return Err("Resultado desconocido: use OK o DENIED"),
+    }
+
+    Ok(Evento { fecha, usuario, tipo, recurso, resultado })
+}
+
+struct Analizador<'a> {
+    texto_original: &'a str,
+    eventos: Vec<Evento<'a>>,
+    lineas_malformadas: usize,
+}
+
+impl<'a> Analizador<'a> {
+    fn nuevo(texto_original: &'a str) -> Self {
+        let mut eventos = Vec::new();
+        let mut lineas_malformadas = 0;
+
+        for (indice, linea) in texto_original.lines().enumerate() {
+            if linea.trim().is_empty() {
+                continue;
+            }
+            if indice == 0 && linea.starts_with("fecha|usuario|") {
+                continue; // Encabezado del archivo.
+            }
+
+            match parsear_linea(linea) {
+                Ok(evento) => eventos.push(evento),
+                Err(error) => {
+                    lineas_malformadas += 1;
+                    eprintln!("Línea {} ignorada: {}", indice + 1, error);
+                }
+            }
+        }
+
+        Self { texto_original, eventos, lineas_malformadas }
+    }
+
+    fn eventos(&self) -> &[Evento<'a>] {
+        &self.eventos
+    }
+
+    fn total_lineas_origen(&self) -> usize {
+        self.texto_original.lines().count()
+    }
+
+    fn lineas_malformadas(&self) -> usize {
+        self.lineas_malformadas
+    }
+
+    fn contar_resultado(&self, resultado_objetivo: &str) -> usize {
+        self.eventos.iter()
+            .filter(|evento| evento.resultado == resultado_objetivo)
+            .count()
+    }
+
+    fn fallos_por_usuario(&self) -> HashMap<&'a str, usize> {
+        let mut conteos = HashMap::new();
+        for evento in &self.eventos {
+            if evento.resultado == "DENIED" {
+                *conteos.entry(evento.usuario).or_insert(0) += 1;
+            }
+        }
+        conteos
+    }
+}
+
+// Esta función toma un préstamo mutable; no crea un nuevo dueño del String.
+fn normalizar_saltos_de_linea(texto: &mut String) {
+    let normalizado = texto.replace("\r\n", "\n").replace('\r', "\n");
+    *texto = normalizado;
+}
+
+fn main() {
+    let mut texto = match fs::read_to_string("data/eventos_demo.log") {
+        Ok(contenido) => contenido,
+        Err(error) => {
+            eprintln!("No se pudo leer data/eventos_demo.log: {error}");
+            return;
+        }
+    };
+
+    normalizar_saltos_de_linea(&mut texto);
+
+    {
+        // El analizador y cada Evento toman prestado el String de texto.
+        let analizador = Analizador::nuevo(&texto);
+
+        println!("=== INFORME DE AUDITORÍA ===");
+        println!("Líneas de origen: {}", analizador.total_lineas_origen());
+        println!("Eventos válidos: {}", analizador.eventos().len());
+        println!("Líneas malformadas: {}", analizador.lineas_malformadas());
+        println!("Accesos denegados: {}", analizador.contar_resultado("DENIED"));
+        println!();
+
+        println!("Eventos administrativos:");
+        for evento in analizador.eventos() {
+            if evento.tipo == "CHANGE_ROLE" || evento.tipo == "RESET_PASSWORD" {
+                println!(
+                    "{} usuario={} evento={} recurso={} resultado={}",
+                    evento.fecha, evento.usuario, evento.tipo, evento.recurso, evento.resultado
+                );
+            }
+        }
+
+        println!();
+        println!("Usuarios con tres o más fallos:");
+        let conteos = analizador.fallos_por_usuario();
+        let mut usuarios: Vec<&&str> = conteos.keys().collect();
+        usuarios.sort();
+        for usuario in usuarios {
+            let cantidad = conteos.get(*usuario).copied().unwrap_or(0);
+            if cantidad >= 3 {
+                println!("  {usuario}: {cantidad} intentos denegados — revisar");
+            }
+        }
+    } // Aquí terminan los préstamos de texto: el String vuelve a poder mutarse.
+
+    texto.push_str("\n# análisis completado");
+    let mut historial: Vec<String> = Vec::new();
+    historial.push(texto); // La propiedad del String se mueve al historial.
+    println!("Buffer original archivado; registros en el historial: {}", historial.len());
+}
+```
+
+## Ejecutar y comprobar
+
+```bash
+cargo fmt
+cargo check
+cargo run
+```
+
+La salida debe identificar tres intentos denegados de usuario_17 y una línea malformada. El tipo Evento guarda referencias al texto original; por eso Analizador mantiene el préstamo mientras se usan los eventos, y solo después se modifica y mueve el String.
+
