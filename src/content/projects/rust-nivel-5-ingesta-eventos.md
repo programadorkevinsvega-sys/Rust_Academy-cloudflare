@@ -883,21 +883,22 @@ async fn run_async(
 
         // La espera del permiso también responde a la cancelación.
         let permiso = tokio::select! {
-            resultado = cancelacion.changed() => {
-                if resultado.is_ok() && *cancelacion.borrow() {
-                    no_lanzados = total_eventos - indice;
-                    break;
-                }
-                continue;
+            _ = cancelacion.changed() => {
+                // El canal de watch solo cambia cuando se solicita el cierre.
+                None
             }
-            permiso = Arc::clone(&semaforo).acquire_owned() => {
-                match permiso {
-                    Ok(permiso) => permiso,
-                    Err(_) => {
-                        no_lanzados = total_eventos - indice;
-                        break;
-                    }
-                }
+            permiso = Arc::clone(&semaforo).acquire_owned() => Some(permiso),
+        };
+
+        let permiso = match permiso {
+            None => {
+                no_lanzados = total_eventos - indice;
+                break;
+            }
+            Some(Ok(permiso)) => permiso,
+            Some(Err(_)) => {
+                no_lanzados = total_eventos - indice;
+                break;
             }
         };
 
