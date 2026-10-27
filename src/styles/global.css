@@ -21,3 +21,23 @@
 .markdown-content{max-width:none;width:100%}
 @media(max-width:900px){.article-layout{grid-template-columns:220px minmax(0,1fr);gap:24px}}
 @media(max-width:640px){.course-page{width:calc(100% - 32px)}.article-layout{grid-template-columns:1fr;gap:15px}}
+
+
+/* Proyectos integradores empresariales por nivel. */
+.course-project-card{display:flex;align-items:center;justify-content:space-between;gap:28px;margin:28px 0 8px;padding:24px 26px;border:1px solid #6b492d;border-radius:14px;background:linear-gradient(115deg,#221d1b,#142137)}
+.course-project-copy{min-width:0}
+.course-project-card h2{margin:12px 0 8px;font-size:22px;line-height:1.35;color:#f8fafc}
+.course-project-card p{max-width:840px;margin:0;color:#a8b6c9;font-size:12px;line-height:1.75}
+.project-card-meta{display:flex;flex-wrap:wrap;gap:13px;margin-top:13px;color:#a9b8cc;font-size:10px;line-height:1.6}
+.project-card-button{flex-shrink:0;white-space:nowrap}
+.project-page{width:min(1400px,calc(100% - 48px));padding-bottom:60px}
+.project-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:38px;padding-top:32px}
+.project-brief-panel{position:sticky;top:20px;padding:20px;border:1px solid #2d3e54;border-radius:12px;background:#111e30}
+.project-brief-panel h2{margin:0 0 10px;color:#f1f5f9;font-size:15px}
+.project-brief-item{display:flex;flex-direction:column;gap:6px;padding:13px 0;border-top:1px solid #29374b}
+.project-brief-item span{color:#8191a8;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase}
+.project-brief-item strong{color:#dce5f2;font-size:11px;line-height:1.65}
+.project-return-button{width:100%;margin-top:15px;text-align:center}
+.project-content{min-width:0}
+@media(max-width:900px){.project-layout{grid-template-columns:210px minmax(0,1fr);gap:24px}}
+@media(max-width:640px){.course-project-card{align-items:stretch;flex-direction:column;gap:17px;padding:19px}.course-project-card h2{font-size:19px}.project-card-button{width:100%;white-space:normal}.project-page{width:calc(100% - 32px)}.project-layout{grid-template-columns:1fr;gap:18px}.project-brief-panel{position:static}.project-return-button{width:100%}}
