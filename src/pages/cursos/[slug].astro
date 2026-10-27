@@ -1,17 +1,170 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+
 export function getStaticPaths() {
- return Object.entries(import.meta.glob('../../content/courses/*.md',{eager:true})).map(([path,mod]:[string,any])=>({params:{slug:path.split('/').pop()?.replace(/\.md$/,'')??''},props:{course:mod}}));
+  return Object.entries(import.meta.glob('../../content/courses/*.md', { eager: true })).map(([path, mod]: [string, any]) => ({
+    params: { slug: path.split('/').pop()?.replace(/\.md$/, '') ?? '' },
+    props: { course: mod },
+  }));
 }
-const {course}=Astro.props;
-const {Content,frontmatter}=course;
+
+const { course } = Astro.props;
+const { Content, frontmatter } = course;
 ---
-<BaseLayout title={frontmatter.title+' — Rust Academy'} description={frontmatter.description}>
-<div class="container course-page"><nav class="breadcrumbs"><a href="/">Inicio</a><span>/</span><a href="/#cursos">Cursos</a><span>/</span><span>{frontmatter.title}</span></nav>
-<header class="lesson-hero"><div class="eyebrow"><span class="eyebrow-dot"></span> {frontmatter.language?.toUpperCase()} · {frontmatter.levelLabel||('Nivel '+frontmatter.level)}</div><h1>{frontmatter.title}</h1><p>{frontmatter.description}</p><div class="lesson-meta"><span>◷ {frontmatter.duration||'A tu ritmo'}</span><span>▤ {frontmatter.category||'Curso guiado'}</span><span>🇪🇸 Contenido en español</span></div><div class="lesson-actions"><a class="button button-ghost" href="/#cursos">← Volver a los cursos</a><button class="button button-primary" type="button" data-course-complete={frontmatter.slug||Astro.params.slug} aria-pressed="false">Marcar curso como completado</button></div></header>
-<div class="article-layout"><aside class="article-sidebar"><div class="sidebar-sticky"><span class="sidebar-label">EN ESTE CURSO</span><nav id="course-toc"><p class="toc-loading">Preparando índice…</p></nav><div class="sidebar-note"><span>💡</span><p>Lee un tema, prueba el código y continúa con el siguiente.</p></div></div></aside><article class="markdown-content"><Content/><div class="article-end"><div class="end-icon">✓</div><h2>¡Buen trabajo!</h2><p>Cuando termines de practicar, marca este curso como completado. Tu elección se guarda en este navegador.</p><button class="button button-primary" type="button" data-course-complete={frontmatter.slug||Astro.params.slug} aria-pressed="false">Marcar curso como completado</button><a href="/#cursos" class="next-link">Explorar otros cursos <span>→</span></a></div></article></div></div>
-<script>
-const article=document.querySelector('.markdown-content'),toc=document.querySelector('#course-toc');
-if(article&&toc){const headings=[...article.querySelectorAll('h2,h3')];toc.innerHTML='';const list=document.createElement('ul');headings.forEach((h)=>{if(!h.id)h.id=h.textContent?.trim().toLowerCase().replace(/[^\w\s-]/g,'').replace(/\s+/g,'-')||'tema';const li=document.createElement('li');if(h.tagName==='H3')li.classList.add('toc-sub');const a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent||'Tema';li.append(a);list.append(li)});toc.append(list)}
-</script>
+
+<BaseLayout title={frontmatter.title + ' — Rust Academy'} description={frontmatter.description}>
+  <div class="container course-page">
+    <nav class="breadcrumbs">
+      <a href="/">Inicio</a><span>/</span><a href="/#cursos">Cursos</a><span>/</span><span>{frontmatter.title}</span>
+    </nav>
+
+    <header class="lesson-hero">
+      <div class="eyebrow"><span class="eyebrow-dot"></span> {frontmatter.language?.toUpperCase()} · {frontmatter.levelLabel || ('Nivel ' + frontmatter.level)}</div>
+      <h1>{frontmatter.title}</h1>
+      <p>{frontmatter.description}</p>
+      <div class="lesson-meta">
+        <span>◷ {frontmatter.duration || 'A tu ritmo'}</span>
+        <span>▤ {frontmatter.category || 'Curso guiado'}</span>
+        <span>🇪🇸 Contenido en español</span>
+      </div>
+      <div class="lesson-actions">
+        <a class="button button-ghost" href="/#cursos">← Volver a los cursos</a>
+        <button class="button button-primary" type="button" data-course-complete={frontmatter.slug || Astro.params.slug} aria-pressed="false">Marcar curso como completado</button>
+      </div>
+    </header>
+
+    <div class="article-layout">
+      <aside class="article-sidebar">
+        <div class="sidebar-sticky">
+          <span class="sidebar-label">EN ESTE CURSO</span>
+          <nav id="course-toc" aria-label="Contenido del curso"><p class="toc-loading">Preparando índice…</p></nav>
+          <div class="sidebar-note"><span>💡</span><p>Lee un tema, prueba el código y continúa con el siguiente.</p></div>
+        </div>
+      </aside>
+
+      <article class="markdown-content" id="course-content">
+        <Content />
+        <div class="article-end">
+          <div class="end-icon">✓</div>
+          <h2>¡Buen trabajo!</h2>
+          <p>Cuando termines de practicar, marca este curso como completado. Tu elección se guarda en este navegador.</p>
+          <button class="button button-primary" type="button" data-course-complete={frontmatter.slug || Astro.params.slug}>Marcar curso como completado</button>
+          <a href="/#cursos" class="next-link">Explorar otros cursos <span>→</span></a>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <script>
+    const article = document.querySelector<HTMLElement>('#course-content');
+    const toc = document.querySelector<HTMLElement>('#course-toc');
+
+    if (article && toc) {
+      const allHeadings = [...article.querySelectorAll<HTMLElement>('h1, h2, h3')];
+      const courseTitle = allHeadings.find((heading) => heading.tagName === 'H1');
+      const tocHeading = allHeadings.find((heading) => heading.textContent?.trim().toLocaleLowerCase('es') === 'índice');
+
+      // El índice escrito dentro del Markdown duplica la navegación lateral; se oculta.
+      if (tocHeading) {
+        let node: Element | null = tocHeading;
+        while (node) {
+          const next: Element | null = node.nextElementSibling;
+          node.remove();
+          if (next && /^H[1-3]$/.test(next.tagName)) break;
+          node = next;
+        }
+      }
+
+      const headings = [...article.querySelectorAll<HTMLElement>('h1, h2, h3')]
+        .filter((heading) => heading !== courseTitle && !heading.closest('.article-end'));
+
+      // El título general no es una lección. Los encabezados de módulo y subtema sí.
+      const lessons = headings.filter((heading) => {
+        const text = heading.textContent?.trim() ?? '';
+        return text.length > 0 && !/^¡Buen trabajo!$/i.test(text);
+      });
+
+      const children = [...article.children];
+      const endCard = article.querySelector<HTMLElement>('.article-end');
+      const endCardIndex = endCard ? children.indexOf(endCard) : children.length;
+      const lessonHeadings = lessons.filter((heading) => children.includes(heading));
+      const list = document.createElement('ul');
+      let activeHeading: HTMLElement | null = null;
+
+      const showLesson = (selected: HTMLElement, updateHash = true) => {
+        const selectedIndex = children.indexOf(selected);
+        const selectedLevel = Number(selected.tagName.substring(1));
+        let endIndex = endCardIndex;
+
+        for (let i = selectedIndex + 1; i < endCardIndex; i++) {
+          const el = children[i];
+          if (/^H[1-3]$/.test(el.tagName) && Number(el.tagName.substring(1)) <= selectedLevel) {
+            endIndex = i;
+            break;
+          }
+        }
+
+        children.forEach((child, index) => {
+          (child as HTMLElement).hidden = index < selectedIndex || index >= endIndex;
+        });
+        if (endCard) endCard.hidden = true;
+
+        toc.querySelectorAll('a').forEach((link) => {
+          const isActive = link.dataset.target === selected.id;
+          link.classList.toggle('is-active', isActive);
+          if (isActive) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        activeHeading = selected;
+        if (updateHash) history.replaceState(null, '', '#' + selected.id);
+        selected.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+
+      lessonHeadings.forEach((heading, index) => {
+        const text = heading.textContent?.trim() || 'Tema ' + (index + 1);
+        heading.id ||= 'tema-' + (index + 1);
+        const li = document.createElement('li');
+        if (heading.tagName === 'H3') li.classList.add('toc-sub');
+        const link = document.createElement('a');
+        link.href = '#' + heading.id;
+        link.dataset.target = heading.id;
+        link.textContent = text;
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          showLesson(heading);
+        });
+        li.append(link);
+        list.append(li);
+      });
+
+      toc.replaceChildren(list);
+
+      const requested = location.hash ? lessonHeadings.find((heading) => heading.id === decodeURIComponent(location.hash.slice(1))) : null;
+      const firstLesson = requested || lessonHeadings.find((heading) => /^H[1-3]$/.test(heading.tagName));
+      if (firstLesson) showLesson(firstLesson, false);
+
+      const finishButton = document.createElement('button');
+      finishButton.type = 'button';
+      finishButton.className = 'next-link lesson-show-all';
+      finishButton.textContent = 'Ver todo el contenido del curso';
+      finishButton.addEventListener('click', () => {
+        children.forEach((child) => ((child as HTMLElement).hidden = false));
+        if (endCard) endCard.hidden = false;
+        toc.querySelectorAll('a').forEach((link) => {
+          link.classList.remove('is-active');
+          link.removeAttribute('aria-current');
+        });
+        activeHeading = null;
+        history.replaceState(null, '', location.pathname);
+        article?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      toc.append(finishButton);
+
+      // Si el usuario usa Atrás/Adelante con hashes, sincroniza la lección visible.
+      window.addEventListener('hashchange', () => {
+        const target = lessonHeadings.find((heading) => heading.id === decodeURIComponent(location.hash.slice(1)));
+        if (target && target !== activeHeading) showLesson(target, false);
+      });
+    }
+  </script>
 </BaseLayout>
