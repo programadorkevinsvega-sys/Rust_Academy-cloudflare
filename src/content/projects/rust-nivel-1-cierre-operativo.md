@@ -16,6 +16,16 @@ moduleName: "Módulos 1–8: variables, tipos, operadores, condicionales, bucles
 
 # Misión del proyecto
 
+## Código fuente ejecutable
+
+El código de referencia explicado en este documento también está disponible como una aplicación Rust independiente, separada en las carpetas `modelo/`, `service/`, `controlador/` y `vista/`.
+
+- [Abrir el proyecto y sus archivos fuente en GitHub](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/tree/main/proyectos/rust-nivel-1-cierre-operativo)
+- Ejecutar desde la raíz del repositorio: `cargo run --manifest-path proyectos/rust-nivel-1-cierre-operativo/Cargo.toml`
+- Ejecutar sus pruebas: `cargo test --manifest-path proyectos/rust-nivel-1-cierre-operativo/Cargo.toml`
+
+Esta versión utiliza datos simulados; no conecta con sistemas empresariales reales.
+
 ## Contexto de empresa
 
 Café Central opera varias cafeterías y cada encargado debe entregar al final del turno un resumen confiable de ventas. Hoy el equipo copia cifras a mano en una hoja de cálculo y comete errores al sumar unidades, calcular importes y clasificar el resultado del día.
