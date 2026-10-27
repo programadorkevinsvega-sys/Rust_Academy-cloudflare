@@ -170,9 +170,15 @@ const { Content, frontmatter } = course;
         let endIndex = endCardIndex;
         for (let i = selectedIndex + 1; i < endCardIndex; i++) {
           const el = children[i];
-          if (/^H[1-3]$/.test(el.tagName) && Number(el.tagName.substring(1)) <= selectedLevel) {
-            endIndex = i;
-            break;
+          if (/^H[1-3]$/.test(el.tagName)) {
+            const nextLevel = Number(el.tagName.substring(1));
+            // Al seleccionar un módulo (H1), mostrar solo su encabezado e introducción,
+            // sin desplegar en la página el contenido de todas sus subsecciones.
+            // Al seleccionar una subsección, incluir sus apartados internos (H3).
+            if (selectedLevel === 1 || nextLevel <= selectedLevel) {
+              endIndex = i;
+              break;
+            }
           }
         }
         children.forEach((child, index) => {
@@ -200,7 +206,7 @@ const { Content, frontmatter } = course;
 
       toc.replaceChildren(list);
       const requested = location.hash ? lessonHeadings.find((heading) => heading.id === decodeURIComponent(location.hash.slice(1))) : null;
-      const firstLesson = requested || lessonHeadings.find((heading) => /^H[1-3]$/.test(heading.tagName));
+      const firstLesson = requested || lessonHeadings.find((heading) => heading.tagName === 'H2') || lessonHeadings[0];
       if (firstLesson) showLesson(firstLesson, false);
 
       const finishButton = document.createElement('button');
