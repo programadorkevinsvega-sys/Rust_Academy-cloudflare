@@ -9,7 +9,7 @@ const { title = 'Rust Academy', description = 'Aprende programación paso a paso
 <main><slot /></main>
 <footer class="footer"><a class="brand footer-brand" href="/"><span class="brand-mark">RA<span>.</span></span><span class="brand-copy">Rust <strong>Academy</strong><small>APRENDE. CONSTRUYE. DOMINA.</small></span></a><p>Una academia abierta, estática y extensible. Tu progreso se guarda en este navegador.</p><span class="footer-meta">Hecho para aprender · Sin cuentas · Sin backend</span></footer>
 </div>
-<script>
+<script lang="ts">
 const KEY='rust-academy-progress-v1';
 const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{"completedCourses":[]}')}catch{return {completedCourses:[]}}};
 const save=(p)=>{try{localStorage.setItem(KEY,JSON.stringify(p))}catch{}};
