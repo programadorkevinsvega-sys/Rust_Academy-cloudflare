@@ -1,0 +1,55 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export function getStaticPaths() {
+  return Object.entries(import.meta.glob('../../content/projects/*.md', { eager: true })).map(([path, mod]: [string, any]) => ({
+    params: { slug: path.split('/').pop()?.replace(/\.md$/, '') ?? '' },
+    props: { project: mod },
+  }));
+}
+
+const { project } = Astro.props;
+const { Content, frontmatter } = project;
+---
+
+<BaseLayout title={frontmatter.title + ' — Rust Academy'} description={frontmatter.description}>
+  <div class="container project-page">
+    <nav class="breadcrumbs">
+      <a href="/">Inicio</a><span>/</span>
+      <a href="/#cursos">Cursos</a><span>/</span>
+      <a href={'/cursos/' + frontmatter.courseSlug + '/'}>{frontmatter.levelLabel}: curso</a><span>/</span>
+      <span>Proyecto</span>
+    </nav>
+
+    <header class="lesson-hero project-hero">
+      <div class="eyebrow"><span class="eyebrow-dot"></span> PROYECTO EMPRESARIAL · {frontmatter.levelLabel}</div>
+      <h1>{frontmatter.title}</h1>
+      <p>{frontmatter.description}</p>
+      <div class="lesson-meta">
+        <span>◷ {frontmatter.duration}</span>
+        <span>▤ {frontmatter.category}</span>
+        <span>📚 {frontmatter.moduleName}</span>
+      </div>
+      <div class="lesson-actions">
+        <a class="button button-ghost" href={'/cursos/' + frontmatter.courseSlug + '/'}>← Volver al curso del nivel</a>
+        <a class="button button-primary" href="/#cursos">Explorar otros cursos <span>→</span></a>
+      </div>
+    </header>
+
+    <div class="project-layout">
+      <aside class="project-sidebar">
+        <div class="project-brief-panel">
+          <h2>Ficha del proyecto</h2>
+          <div class="project-brief-item"><span>Empresa del caso</span><strong>{frontmatter.company}</strong></div>
+          <div class="project-brief-item"><span>Rol asignado</span><strong>{frontmatter.role}</strong></div>
+          <div class="project-brief-item"><span>Módulos cubiertos</span><strong>{frontmatter.moduleName}</strong></div>
+          <a class="button button-primary project-return-button" href={'/cursos/' + frontmatter.courseSlug + '/'}>Volver al contenido del nivel</a>
+        </div>
+      </aside>
+
+      <article class="markdown-content project-content">
+        <Content />
+      </article>
+    </div>
+  </div>
+</BaseLayout>
