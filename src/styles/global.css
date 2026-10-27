@@ -6,3 +6,18 @@
 .markdown-content > h1:first-child{display:none}
 /* Navegación por lecciones: solo se muestra la sección seleccionada. */
 #course-content [hidden]{display:none!important}.article-sidebar nav a.is-active{color:#fff0df;border-left:2px solid #fb923c;background:#fb923c12;font-weight:750}.lesson-show-all{width:100%;padding:9px;border:1px solid #2b3b51;border-radius:8px;background:#111e30;color:#fdba74;cursor:pointer;text-align:center}
+
+/* Índice jerárquico: los subtemas se despliegan bajo demanda. */
+.article-sidebar .toc-list ul{list-style:none;margin:0;padding-left:10px}
+.article-sidebar .toc-parent-row{display:flex;align-items:stretch;gap:4px}
+.article-sidebar .toc-parent-row>a{flex:1;min-width:0}
+.article-sidebar .toc-toggle{flex:0 0 28px;align-self:center;width:28px;height:28px;border:1px solid #304157;border-radius:6px;background:#142137;color:#fdba74;font-size:16px;line-height:1;cursor:pointer}
+.article-sidebar .toc-toggle:hover{border-color:#fb923c;background:#2a211d}
+.article-sidebar .toc-children[hidden]{display:none!important}
+.article-sidebar .toc-sub a{padding-left:12px}
+.article-sidebar li.is-expanded>.toc-parent-row>a{color:#fdb477}
+.course-page{width:min(1600px,calc(100% - 48px))}
+.article-layout{grid-template-columns:280px minmax(0,1fr);gap:36px}
+.markdown-content{max-width:none;width:100%}
+@media(max-width:900px){.article-layout{grid-template-columns:220px minmax(0,1fr);gap:24px}}
+@media(max-width:640px){.course-page{width:calc(100% - 32px)}.article-layout{grid-template-columns:1fr;gap:15px}}
