@@ -10,6 +10,9 @@ export function getStaticPaths() {
 
 const { course } = Astro.props;
 const { Content, frontmatter } = course;
+const projectModules = Object.entries(import.meta.glob('../../content/projects/*.md', { eager: true }));
+const projectEntry = projectModules.find(([path]) => path.split('/').pop()?.replace(/\.md$/, '') === frontmatter.projectSlug);
+const projectFrontmatter = projectEntry ? (projectEntry[1] as any).frontmatter : null;
 ---
 
 <BaseLayout title={frontmatter.title + ' — Rust Academy'} description={frontmatter.description}>
@@ -32,6 +35,23 @@ const { Content, frontmatter } = course;
         <button class="button button-primary" type="button" data-course-complete={frontmatter.slug || Astro.params.slug} aria-pressed="false">Marcar curso como completado</button>
       </div>
     </header>
+
+    {projectFrontmatter && (
+      <section class="course-project-card" aria-labelledby="course-project-title">
+        <div class="course-project-copy">
+          <div class="eyebrow"><span class="eyebrow-dot"></span> PROYECTO EMPRESARIAL DEL NIVEL</div>
+          <h2 id="course-project-title">{projectFrontmatter.title}</h2>
+          <p>{projectFrontmatter.description}</p>
+          <div class="project-card-meta">
+            <span>📚 {projectFrontmatter.moduleName}</span>
+            <span>◷ {projectFrontmatter.duration}</span>
+          </div>
+        </div>
+        <a class="button button-primary project-card-button" href={'/proyectos/' + projectFrontmatter.slug + '/'}>
+          Ver enunciado del proyecto <span>→</span>
+        </a>
+      </section>
+    )}
 
     <div class="article-layout">
       <aside class="article-sidebar">
