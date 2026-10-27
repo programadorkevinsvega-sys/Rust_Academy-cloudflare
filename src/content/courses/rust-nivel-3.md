@@ -33,7 +33,7 @@ tags: ["ownership", "borrowing", "lifetimes", "referencias", "memoria"]
 6. [Slices: `&str` y `&[T]`](#módulo-6-slices-str-y-t)
 7. [Lifetimes: `'a`, referencias y su validez](#módulo-7-lifetimes-a-referencias-y-su-validez)
 8. [Cómo funciona el borrow checker](#módulo-8-cómo-funciona-el-borrow-checker)
-9. [Proyecto integrador: auditoría de eventos sin copias innecesarias](#proyectointegradoraditoriadeeventossincopiasinnecesarias)
+9. [Proyecto integrador: auditoría de eventos sin copias innecesarias](#proyecto-integrador-auditoria-de-eventos-sin-copias-innecesarias)
 10. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 11. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 12. [Errores frecuentes del compilador](#errores-frecuentes-del-compilador)
@@ -2748,7 +2748,7 @@ Propuesta de 6 sesiones de ~90 minutos. Este nivel es **el más importante**: co
 | **3** | Módulo 4 (referencias `&` y `&mut`) | Reescribir funciones que consumen para que presten; práctica de `&str` y `&[T]` |
 | **4** | Módulo 5 (aliasing y mutabilidad) | Ejercicios 4.1 y 4.2; provocar E0499, E0502, E0505 y E0506 a propósito |
 | **5** | Módulo 6 (slices) + Módulo 7 (lifetimes, primera parte) | Ejercicios 6.1, 6.2, 7.1, 7.2 |
-| **6** | Módulo 7 (lifetimes, segunda parte) + Módulo 8 (borrow checker) + Proyecto integrador | Ejercicios 7.3, 7.4, 8.1, 8.2; simulación a mano del borrow checker; modificar el analizador |
+| **6** | Módulo 7 (lifetimes, segunda parte) + Módulo 8 (borrow checker) + Proyecto integrador | Ejercicios 7.3, 7.4, 8.1, 8.2; simulación a mano del borrow checker; ampliar el analizador de auditoría de eventos |
 
 ### Recomendaciones de enseñanza
 
