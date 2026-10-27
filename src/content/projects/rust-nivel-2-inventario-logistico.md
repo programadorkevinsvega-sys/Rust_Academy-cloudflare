@@ -137,408 +137,47 @@ No implementes una API HTTP, base de datos ni sincronización entre tiendas. La 
 
 # Solución de referencia completa
 
-Esta solución separa modelo, inventario y reportes en archivos de Rust. Crea el proyecto con los siguientes comandos:
+La implementación ejecutable está separada en capas. No concentres las reglas del negocio en `src/main.rs`: el punto de entrada solo declara los módulos y llama al controlador.
 
-```bash
-cargo new inventario_logistico
-cd inventario_logistico
-```
-
-La estructura final será:
+## Arquitectura requerida
 
 ```text
-inventario_logistico/
+rust-nivel-2-inventario-logistico/
 ├── Cargo.toml
 └── src/
     ├── main.rs
-    ├── producto.rs
-    ├── inventario.rs
-    └── reportes.rs
+    ├── modelo/
+    │   └── mod.rs
+    ├── vista/
+    │   └── mod.rs
+    ├── controlador/
+    │   └── mod.rs
+    └── service/
+        └── mod.rs
 ```
 
-## Cargo.toml
+- **Modelo:** representa productos, categorías, movimientos de inventario y datos de cada SKU.
+- **Service:** valida operaciones, controla el stock, rechaza SKU duplicados y calcula indicadores de inventario.
+- **Controlador:** prepara los datos de ejemplo, coordina las operaciones y envía el resultado a la vista.
+- **Vista:** muestra el inventario, los movimientos y las alertas de stock.
+- **main.rs:** declara las capas y ejecuta el controlador.
 
-```toml
-[package]
-name = "inventario_logistico"
-version = "0.1.0"
-edition = "2021"
+## Código fuente por archivo
 
-[dependencies]
-```
-
-## src/producto.rs
-
-```rust
-use std::fmt;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Categoria {
-    Bebida,
-    Comida,
-    Aseo,
-    Tecnologia,
-}
-
-impl fmt::Display for Categoria {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let texto = match self {
-            Categoria::Bebida => "Bebida",
-            Categoria::Comida => "Comida",
-            Categoria::Aseo => "Aseo",
-            Categoria::Tecnologia => "Tecnologia",
-        };
-        write!(f, "{texto}")
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Movimiento {
-    Entrada(u32),
-    Salida(u32),
-}
-
-#[derive(Debug, Clone)]
-pub struct Producto {
-    id: u32,
-    sku: String,
-    nombre: String,
-    categoria: Categoria,
-    precio_cop: u64,
-    stock: u32,
-    stock_minimo: u32,
-    activo: bool,
-}
-
-pub trait Reportable {
-    fn linea_reporte(&self) -> String;
-}
-
-impl Producto {
-    pub fn nuevo(
-        id: u32,
-        sku: &str,
-        nombre: &str,
-        categoria: Categoria,
-        precio_cop: u64,
-        stock: u32,
-        stock_minimo: u32,
-    ) -> Result<Self, String> {
-        if sku.trim().is_empty() {
-            return Err("El SKU no puede estar vacío".to_string());
-        }
-        if nombre.trim().is_empty() {
-            return Err("El nombre del producto no puede estar vacío".to_string());
-        }
-        if precio_cop == 0 {
-            return Err(format!("El precio de {nombre} debe ser mayor que cero"));
-        }
-
-        Ok(Self {
-            id,
-            sku: sku.trim().to_string(),
-            nombre: nombre.trim().to_string(),
-            categoria,
-            precio_cop,
-            stock,
-            stock_minimo,
-            activo: true,
-        })
-    }
-
-    pub fn sku(&self) -> &str { &self.sku }
-    pub fn nombre(&self) -> &str { &self.nombre }
-    pub fn categoria(&self) -> Categoria { self.categoria }
-    pub fn stock(&self) -> u32 { self.stock }
-    pub fn stock_minimo(&self) -> u32 { self.stock_minimo }
-    pub fn esta_activo(&self) -> bool { self.activo }
-
-    pub fn valor_stock_cop(&self) -> Result<u64, String> {
-        self.precio_cop
-            .checked_mul(u64::from(self.stock))
-            .ok_or_else(|| format!("Desbordamiento al calcular el valor de {}", self.sku))
-    }
-
-    pub fn aplicar_movimiento(&mut self, movimiento: Movimiento) -> Result<(), String> {
-        match movimiento {
-            Movimiento::Entrada(cantidad) => {
-                self.stock = self.stock.checked_add(cantidad)
-                    .ok_or_else(|| format!("El stock excedería el límite para {}", self.sku))?;
-            }
-            Movimiento::Salida(cantidad) => {
-                if cantidad > self.stock {
-                    return Err(format!(
-                        "Stock insuficiente para {}: hay {}, se solicitan {}",
-                        self.sku, self.stock, cantidad
-                    ));
-                }
-                self.stock -= cantidad;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl Reportable for Producto {
-    fn linea_reporte(&self) -> String {
-        format!(
-            "#{:03} | {:<12} | {:<20} | {:<7} | stock {:>4} | mínimo {:>4} | ${} | {}",
-            self.id, self.sku, self.nombre, self.categoria,
-            self.stock, self.stock_minimo, self.precio_cop,
-            if self.activo { "Activo" } else { "Inactivo" }
-        )
-    }
-}
-```
-
-## src/inventario.rs
-
-```rust
-use std::collections::{HashMap, HashSet};
-
-use crate::producto::{Categoria, Movimiento, Producto};
-
-pub struct Inventario {
-    productos: Vec<Producto>,
-    skus: HashSet<String>,
-}
-
-impl Inventario {
-    pub fn nuevo() -> Self {
-        Self { productos: Vec::new(), skus: HashSet::new() }
-    }
-
-    pub fn agregar(&mut self, producto: Producto) -> Result<(), String> {
-        if self.skus.contains(producto.sku()) {
-            return Err(format!("Ya existe el SKU {}", producto.sku()));
-        }
-        self.skus.insert(producto.sku().to_string());
-        self.productos.push(producto);
-        Ok(())
-    }
-
-    pub fn buscar(&self, sku: &str) -> Option<&Producto> {
-        self.productos.iter().find(|producto| producto.sku() == sku)
-    }
-
-    pub fn aplicar_movimiento(
-        &mut self,
-        sku: &str,
-        movimiento: Movimiento,
-    ) -> Result<(), String> {
-        let producto = self.productos.iter_mut()
-            .find(|producto| producto.sku() == sku)
-            .ok_or_else(|| format!("No existe el producto con SKU {sku}"))?;
-        producto.aplicar_movimiento(movimiento)
-    }
-
-    pub fn productos(&self) -> &[Producto] { &self.productos }
-
-    pub fn productos_bajo_minimo(&self) -> Vec<&Producto> {
-        self.productos.iter()
-            .filter(|p| p.esta_activo() && p.stock() <= p.stock_minimo())
-            .collect()
-    }
-
-    pub fn valor_total_cop(&self) -> Result<u64, String> {
-        let mut total = 0_u64;
-        for producto in &self.productos {
-            total = total.checked_add(producto.valor_stock_cop()?)
-                .ok_or_else(|| "Desbordamiento al sumar el valor total".to_string())?;
-        }
-        Ok(total)
-    }
-
-    pub fn stock_por_categoria(&self) -> HashMap<Categoria, u64> {
-        let mut resumen = HashMap::new();
-        for producto in &self.productos {
-            *resumen.entry(producto.categoria()).or_insert(0_u64) += u64::from(producto.stock());
-        }
-        resumen
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Inventario;
-    use crate::producto::{Categoria, Movimiento, Producto};
-
-    fn inventario_con_producto() -> Inventario {
-        let mut inventario = Inventario::nuevo();
-        let producto = Producto::nuevo(
-            1, "SKU-TEST", "Agua", Categoria::Bebida, 2_500, 10, 3
-        ).expect("los datos de prueba son validos");
-        inventario.agregar(producto).expect("el SKU de prueba es unico");
-        inventario
-    }
-
-    #[test]
-    fn rechaza_sku_duplicado() {
-        let mut inventario = inventario_con_producto();
-        let duplicado = Producto::nuevo(
-            2, "SKU-TEST", "Otra agua", Categoria::Bebida, 1_000, 1, 0
-        ).expect("el producto duplicado tiene datos validos");
-        assert!(inventario.agregar(duplicado).is_err());
-        assert_eq!(inventario.productos().len(), 1);
-    }
-
-    #[test]
-    fn salida_mayor_que_el_stock_no_modifica_el_inventario() {
-        let mut inventario = inventario_con_producto();
-        assert!(inventario.aplicar_movimiento("SKU-TEST", Movimiento::Salida(20)).is_err());
-        assert_eq!(inventario.buscar("SKU-TEST").unwrap().stock(), 10);
-    }
-
-    #[test]
-    fn movimiento_valido_actualiza_stock_y_valor() {
-        let mut inventario = inventario_con_producto();
-        inventario.aplicar_movimiento("SKU-TEST", Movimiento::Entrada(5)).unwrap();
-        assert_eq!(inventario.buscar("SKU-TEST").unwrap().stock(), 15);
-        assert_eq!(inventario.valor_total_cop().unwrap(), 37_500);
-    }
-}
-```
-
-## src/reportes.rs
-
-```rust
-use crate::inventario::Inventario;
-use crate::producto::Reportable;
-
-// Función genérica: sirve con cualquier tipo que cumpla el predicado.
-pub fn buscar_primero<T, F>(elementos: &[T], mut coincide: F) -> Option<&T>
-where
-    F: FnMut(&T) -> bool,
-{
-    elementos.iter().find(|elemento| coincide(elemento))
-}
-
-pub fn imprimir_catalogo(inventario: &Inventario) {
-    println!("CATÁLOGO DE INVENTARIO");
-    println!("---------------------------------------------------------------");
-    for producto in inventario.productos() {
-        println!("{}", producto.linea_reporte());
-    }
-}
-
-pub fn imprimir_reposicion(inventario: &Inventario) {
-    println!("ALERTAS DE REPOSICIÓN");
-    let alertas = inventario.productos_bajo_minimo();
-    if alertas.is_empty() {
-        println!("No hay productos bajo el mínimo.");
-        return;
-    }
-    for producto in alertas {
-        println!(
-            "{}: stock={}, mínimo={}",
-            producto.sku(), producto.stock(), producto.stock_minimo()
-        );
-    }
-}
-```
-
-## src/main.rs
-
-```rust
-mod inventario;
-mod producto;
-mod reportes;
-
-use inventario::Inventario;
-use producto::{Categoria, Movimiento, Producto};
-use reportes::{buscar_primero, imprimir_catalogo, imprimir_reposicion};
-
-fn main() {
-    let mut inventario = Inventario::nuevo();
-
-    let productos = [
-        Producto::nuevo(1, "SKU-AGUA", "Agua", Categoria::Bebida, 3_000, 40, 10),
-        Producto::nuevo(2, "SKU-CAFE", "Café molido", Categoria::Bebida, 18_000, 7, 8),
-        Producto::nuevo(3, "SKU-ARROZ", "Arroz", Categoria::Comida, 4_200, 25, 6),
-        Producto::nuevo(4, "SKU-JABON", "Jabón", Categoria::Aseo, 3_800, 15, 5),
-        Producto::nuevo(5, "SKU-PAN", "Pan tajado", Categoria::Comida, 6_500, 4, 5),
-        Producto::nuevo(6, "SKU-TECLADO", "Teclado", Categoria::Tecnologia, 65_000, 7, 2),
-    ];
-
-    for resultado in productos {
-        match resultado {
-            Ok(producto) => {
-                if let Err(error) = inventario.agregar(producto) {
-                    println!("No se pudo agregar: {error}");
-                }
-            }
-            Err(error) => println!("Producto inválido: {error}"),
-        }
-    }
-
-    let duplicado = Producto::nuevo(
-        99, "SKU-AGUA", "Agua duplicada", Categoria::Bebida, 2_800, 5, 2
-    );
-    match duplicado {
-        Ok(producto) => match inventario.agregar(producto) {
-            Ok(()) => println!("Producto agregado."),
-            Err(error) => println!("Alta rechazada correctamente: {error}"),
-        },
-        Err(error) => println!("Datos inválidos: {error}"),
-    }
-
-    println!();
-    imprimir_catalogo(&inventario);
-
-    println!();
-    match inventario.aplicar_movimiento("SKU-AGUA", Movimiento::Salida(10)) {
-        Ok(()) => println!("Venta registrada: 10 unidades de SKU-AGUA."),
-        Err(error) => println!("Venta rechazada: {error}"),
-    }
-    match inventario.aplicar_movimiento("SKU-ARROZ", Movimiento::Salida(100)) {
-        Ok(()) => println!("Salida registrada."),
-        Err(error) => println!("Venta rechazada correctamente: {error}"),
-    }
-    match inventario.aplicar_movimiento("SKU-AGUA", Movimiento::Entrada(5)) {
-        Ok(()) => println!("Recepción registrada: 5 unidades de SKU-AGUA."),
-        Err(error) => println!("Recepción rechazada: {error}"),
-    }
-
-    match inventario.buscar("SKU-JABON") {
-        Some(producto) => println!("Búsqueda: encontrado {}", producto.nombre()),
-        None => println!("Búsqueda: producto no encontrado"),
-    }
-    match inventario.buscar("SKU-NO-EXISTE") {
-        Some(producto) => println!("Encontrado: {}", producto.nombre()),
-        None => println!("Búsqueda controlada: el SKU no existe."),
-    }
-
-    println!();
-    match inventario.valor_total_cop() {
-        Ok(total) => println!("Valor total del stock: ${total} COP"),
-        Err(error) => println!("No se pudo calcular el valor total: {error}"),
-    }
-
-    println!("Stock por categoría:");
-    for (categoria, unidades) in inventario.stock_por_categoria() {
-        println!("  {categoria}: {unidades} unidades");
-    }
-
-    println!();
-    imprimir_reposicion(&inventario);
-
-    if let Some(producto) = buscar_primero(
-        inventario.productos(),
-        |p| p.stock() <= p.stock_minimo()
-    ) {
-        println!("Primera referencia que requiere reposición: {}", producto.sku());
-    }
-}
-```
+- [Cargo.toml](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-2-inventario-logistico/Cargo.toml)
+- [src/main.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-2-inventario-logistico/src/main.rs)
+- [Modelo: src/modelo/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-2-inventario-logistico/src/modelo/mod.rs)
+- [Service: src/service/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-2-inventario-logistico/src/service/mod.rs)
+- [Vista: src/vista/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-2-inventario-logistico/src/vista/mod.rs)
+- [Controlador: src/controlador/mod.rs](https://github.com/programadorkevinsvega-sys/Rust_Academy-cloudflare/blob/main/proyectos/rust-nivel-2-inventario-logistico/src/controlador/mod.rs)
 
 ## Ejecutar y probar
 
+Desde la raíz del repositorio:
+
 ```bash
-cargo fmt
-cargo check
-cargo run
-cargo test
+cargo run --manifest-path proyectos/rust-nivel-2-inventario-logistico/Cargo.toml
+cargo test --manifest-path proyectos/rust-nivel-2-inventario-logistico/Cargo.toml
 ```
 
-La solución usa Vec como catálogo, HashSet para rechazar SKU duplicados y HashMap para agrupar unidades. Los campos del producto son privados y las modificaciones pasan por métodos que validan las reglas de negocio. La función genérica y el trait Reportable están separados del modelo.
-
+Los productos y movimientos iniciales son datos demostrativos. En producción, cada movimiento debe quedar registrado con fecha, responsable y referencia para permitir auditoría y reconstrucción del stock.
