@@ -28,19 +28,24 @@ def extract_solution(markdown_path: Path) -> dict[str, str]:
     buffer: list[str] = []
     files: dict[str, str] = {}
 
+    fence_char = None
     for line in lines:
-        if line.startswith("~~~"):
+        fence_match = re.match(r"^(`{3,}|~{3,})", line)
+        if fence_match:
+            this_fence = fence_match.group(1)[0]
             if not inside_fence:
                 inside_fence = True
+                fence_char = this_fence
                 captured_file = current_file
                 buffer = []
-            else:
+            elif this_fence == fence_char:
                 inside_fence = False
                 if captured_file:
                     files[captured_file] = "\n".join(buffer) + "\n"
                 captured_file = None
                 buffer = []
                 current_file = None
+                fence_char = None
             continue
 
         if inside_fence:
