@@ -8,6 +8,7 @@ category: "Fundamentos"
 duration: "Principiante"
 order: 1
 slug: rust-nivel-1
+projectSlug: "rust-nivel-1-cierre-operativo"
 tags: ["variables", "tipos", "funciones", "control de flujo", "arrays", "tuplas"]
 ---
 
@@ -32,7 +33,7 @@ tags: ["variables", "tipos", "funciones", "control de flujo", "arrays", "tuplas"
 6. [Funciones, parámetros y valores de retorno](#módulo-6-funciones-parámetros-y-valores-de-retorno)
 7. [Ámbitos de variables (scope)](#módulo-7-ámbitos-de-variables-scope)
 8. [Tuplas y arrays](#módulo-8-tuplas-y-arrays)
-9. [Proyecto integrador: reporte de notas](#proyecto-integrador-reporte-de-notas)
+9. [Proyecto integrador: cierre operativo de una cafetería](#proyectointegradorcierreoperativodenacaeteria)
 10. [Ejercicios con soluciones](#ejercicios-con-soluciones)
 11. [Hoja de referencia rápida](#hoja-de-referencia-rápida)
 12. [Errores frecuentes del compilador](#errores-frecuentes-del-compilador)
@@ -2559,112 +2560,16 @@ fn main() {
 
 ---
 
-# Proyecto integrador: reporte de notas
+# Proyecto integrador: cierre operativo de una cafetería
 
-Este programa une **todos** los temas del Nivel 1: constantes, tipos, operadores, conversiones, `if`, `match`, bucles, funciones, tuplas y arrays.
+El encargo empresarial de este nivel consiste en crear un reporte de cierre diario de ventas con arrays, tuplas, funciones, operadores y control de flujo.
 
-```rust
-const NOTA_MINIMA: f64 = 3.0;
-const CANTIDAD: usize = 5;
+**Proyecto independiente:** [Abrir el enunciado completo](/proyectos/rust-nivel-1-cierre-operativo/).
 
-/// Devuelve el promedio de las notas.
-fn promedio(notas: [f64; CANTIDAD]) -> f64 {
-    let mut suma = 0.0;
-    for nota in notas {
-        suma += nota;
-    }
-    suma / CANTIDAD as f64          // conversión: usize -> f64
-}
-
-/// Devuelve (máximo, mínimo) en una tupla.
-fn maximo_y_minimo(notas: [f64; CANTIDAD]) -> (f64, f64) {
-    let mut maximo = notas[0];
-    let mut minimo = notas[0];
-
-    for nota in notas {
-        if nota > maximo {
-            maximo = nota;
-        }
-        if nota < minimo {
-            minimo = nota;
-        }
-    }
-    (maximo, minimo)
-}
-
-/// Cuenta cuántas notas son aprobatorias.
-fn contar_aprobadas(notas: [f64; CANTIDAD]) -> u32 {
-    let mut contador = 0;
-    for nota in notas {
-        if nota >= NOTA_MINIMA {
-            contador += 1;
-        }
-    }
-    contador
-}
-
-/// Clasifica el desempeño según el promedio.
-fn clasificar(prom: f64) -> &'static str {
-    if prom >= 4.5 {
-        "Excelente"
-    } else if prom >= 4.0 {
-        "Bueno"
-    } else if prom >= NOTA_MINIMA {
-        "Aceptable"
-    } else {
-        "Insuficiente"
-    }
-}
-
-fn main() {
-    let notas: [f64; CANTIDAD] = [4.5, 3.2, 2.8, 5.0, 3.9];
-
-    let prom = promedio(notas);
-    let (maxima, minima) = maximo_y_minimo(notas);
-    let aprobadas = contar_aprobadas(notas);
-
-    println!("===== REPORTE DE NOTAS =====");
-    for (i, nota) in notas.iter().enumerate() {
-        let estado = match *nota >= NOTA_MINIMA {
-            true => "aprobada",
-            false => "reprobada",
-        };
-        println!("Nota {}: {:.1} -> {}", i + 1, nota, estado);
-    }
-    println!("----------------------------");
-    println!("Promedio:   {:.2}", prom);
-    println!("Máxima:     {:.1}", maxima);
-    println!("Mínima:     {:.1}", minima);
-    println!("Aprobadas:  {} de {}", aprobadas, CANTIDAD);
-    println!("Resultado:  {}", clasificar(prom));
-}
-```
-
-**Salida esperada:**
-
-```
-===== REPORTE DE NOTAS =====
-Nota 1: 4.5 -> aprobada
-Nota 2: 3.2 -> aprobada
-Nota 3: 2.8 -> reprobada
-Nota 4: 5.0 -> aprobada
-Nota 5: 3.9 -> aprobada
-----------------------------
-Promedio:   3.88
-Máxima:     5.0
-Mínima:     2.8
-Aprobadas:  4 de 5
-Resultado:  Aceptable
-```
-
-**Preguntas para discutir en clase:**
-
-1. ¿Por qué `CANTIDAD` es una `const` y no un `let`? (Pista: el tamaño de un array debe conocerse al compilar.)
-2. ¿Por qué hay que escribir `CANTIDAD as f64`?
-3. ¿Qué pasaría si `clasificar` no tuviera el `else` final?
-4. ¿Por qué se puede usar `notas` varias veces si se pasa a funciones por valor?  (Pista: los arrays de tipos simples se copian.)
+**Módulos integrados:** revisa en el enunciado qué requisito empresarial pone en práctica cada módulo del nivel.
 
 ---
+
 
 # Ejercicios con soluciones
 
